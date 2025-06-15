@@ -100,13 +100,13 @@ try {
 
     // Вземане на всички неплатени такси с информация за апартамент и сграда
     $stmt = $pdo->query("
-        SELECT f.*, fa.apartment_id, a.number AS apartment_number, b.name AS building_name
+        SELECT fa.id as id, f.*, fa.apartment_id, a.number AS apartment_number, b.name AS building_name, fa.amount
         FROM fees f 
         JOIN fee_apartments fa ON fa.fee_id = f.id
         JOIN apartments a ON fa.apartment_id = a.id
         JOIN buildings b ON a.building_id = b.id 
         LEFT JOIN payments p ON p.fee_id = f.id AND p.apartment_id = fa.apartment_id
-        WHERE p.id IS NULL
+        WHERE fa.is_paid = 0
         ORDER BY f.created_at DESC
     ");
     $unpaid_fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
