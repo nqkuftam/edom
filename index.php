@@ -59,10 +59,30 @@ try {
     ");
     $recentPayments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
+    // Зареждам бележките от базата за текущата сграда:
+    $notes = [];
+    if ($currentBuilding) {
+        $stmt = $pdo->prepare("SELECT n.*, u.username FROM building_notes n LEFT JOIN users u ON n.user_id = u.id WHERE n.building_id = ? ORDER BY n.created_at DESC");
+        $stmt->execute([$currentBuilding['id']]);
+        $notes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
 } catch (PDOException $e) {
     $error = handlePDOError($e);
 } catch (Exception $e) {
     $error = handleError($e);
+}
+
+// При обработка на POST заявка с action=add_note, добавям нова бележка в базата
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_note') {
+    $note = trim($_POST['note'] ?? '');
+    if ($note && $currentBuilding) {
+        $user_id = $_SESSION['user_id'] ?? null;
+        $stmt = $pdo->prepare("INSERT INTO building_notes (building_id, user_id, note) VALUES (?, ?, ?)");
+        $stmt->execute([$currentBuilding['id'], $user_id, $note]);
+        header('Location: index.php');
+        exit();
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -83,74 +103,114 @@ try {
         </div>
     </div>
 
-    <div class="container">
-        <?php echo renderBuildingSelector(); ?>
-        
-        <?php if ($currentBuilding): ?>
-        <div class="building-info">
-            <h4><i class="fas fa-building"></i> Текуща сграда: <?php echo htmlspecialchars($currentBuilding['name']); ?></h4>
-            <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
-        </div>
-        <?php endif; ?>
-        
-        <?php if ($error): ?>
-            <?php echo $error; ?>
-        <?php endif; ?>
-        
-        <?php if ($success): ?>
-            <?php echo $success; ?>
-        <?php endif; ?>
-        
-        <div class="stats-grid">
-            <div class="stat-card">
-                <i class="fas fa-building fa-2x mb-3" style="color: var(--primary-color);"></i>
-                <h3><?php echo $totalBuildings; ?></h3>
-                <p>Общ брой сгради</p>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Лява колона -->
+            <div class="col-md-3">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title">Управление</h5>
+                        <p><strong>Силвия Великова</strong><br><a href="mailto:es.silistra@gmail.com">es.silistra@gmail.com</a></p>
+                        <hr>
+                        <ul class="list-unstyled mb-3">
+                            <li><i class="fas fa-building"></i> <a href="#">Имотии</a> <span class="badge bg-secondary">24</span></li>
+                            <li><i class="fas fa-users"></i> <a href="#">Клиенти</a></li>
+                            <li><i class="fas fa-euro-sign"></i> <a href="#">Счетоводство</a></li>
+                            <li><i class="fas fa-bell"></i> <a href="#">Сигнали</a></li>
+                        </ul>
+                        <div class="d-flex justify-content-between mb-3">
+                            <button class="btn btn-outline-success btn-sm"><i class="fas fa-home"></i></button>
+                            <button class="btn btn-outline-info btn-sm"><i class="fas fa-users"></i></button>
+                            <button class="btn btn-outline-primary btn-sm"><i class="fas fa-euro-sign"></i></button>
+                            <button class="btn btn-outline-danger btn-sm"><i class="fas fa-bell"></i></button>
+                        </div>
+                        <button class="btn btn-success w-100">Сигнализирай</button>
+                    </div>
+                </div>
+                <!-- Бележки -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title">Бележки</h5>
+                        <ul class="list-group mb-3">
+                            <?php foreach ($notes as $n): ?>
+                            <li class="list-group-item small">
+                                <span class="text-muted"><?php echo date('Y-m-d', strtotime($n['created_at'])); ?></span>
+                                <?php if ($n['username']): ?> - <b><?php echo htmlspecialchars($n['username']); ?></b><?php endif; ?>
+                                - <?php echo htmlspecialchars($n['note']); ?>
+                            </li>
+                            <?php endforeach; ?>
+                        </ul>
+                        <form method="POST">
+                            <input type="hidden" name="action" value="add_note">
+                            <div class="mb-2">
+                                <textarea class="form-control" rows="2" name="note" placeholder="Нова бележка..." required></textarea>
+                            </div>
+                            <button class="btn btn-primary btn-sm w-100">Добави</button>
+                        </form>
+                    </div>
+                </div>
             </div>
-            
-            <div class="stat-card">
-                <i class="fas fa-home fa-2x mb-3" style="color: var(--primary-color);"></i>
-                <h3><?php echo $totalApartments; ?></h3>
-                <p>Общ брой апартаменти</p>
+            <!-- Дясна колона -->
+            <div class="col-md-9">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Съобщения</h5>
+                                <p class="text-muted">Няма нови съобщения</p>
+                            </div>
+                        </div>
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Информация</h5>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Каси</h5>
+                                <div class="row">
+                                    <div class="col-6 text-center">
+                                        <div class="h4">0.00 ЛВ</div>
+                                        <div class="text-muted">САЛДО</div>
+                                    </div>
+                                    <div class="col-6 text-center">
+                                        <div class="h4">264.16 ЛВ</div>
+                                        <div class="text-muted">НА РАЗПОЛОЖЕНИЕ</div>
+                                    </div>
+                                </div>
+                                <table class="table table-sm mt-3">
+                                    <thead>
+                                        <tr><th>Текущи задължения</th><th>Просрочени</th><th>Салдо</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td>ОК</td><td>393.33 лв.</td><td>-223.55 лв.</td></tr>
+                                        <tr><td>ФРО</td><td>105.25 лв.</td><td>388.75 лв.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Документи</h5>
+                                <form>
+                                    <div class="mb-2">
+                                        <input type="file" class="form-control" multiple>
+                                    </div>
+                                    <div class="mb-2">
+                                        <select class="form-select">
+                                            <option>Директория</option>
+                                        </select>
+                                    </div>
+                                    <button class="btn btn-primary w-100">Прикачи</button>
+                                </form>
+                                <div class="mt-2 text-muted">Няма прикачени документи</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            
-            <div class="stat-card">
-                <i class="fas fa-money-bill-wave fa-2x mb-3" style="color: var(--primary-color);"></i>
-                <h3><?php echo number_format($totalDebts, 2); ?> лв.</h3>
-                <p>Общ дълг</p>
-            </div>
-        </div>
-        
-        <div class="card">
-            <h2 class="mb-4"><i class="fas fa-history"></i> Последни плащания</h2>
-            <?php if ($recentPayments): ?>
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Дата</th>
-                            <th>Сграда</th>
-                            <th>Апартамент</th>
-                            <th>Сума</th>
-                            <th>Метод</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($recentPayments as $payment): ?>
-                        <tr>
-                            <td><?php echo date('d.m.Y', strtotime($payment['payment_date'])); ?></td>
-                            <td><?php echo htmlspecialchars($payment['building_name']); ?></td>
-                            <td><?php echo htmlspecialchars($payment['apartment_number']); ?></td>
-                            <td><?php echo number_format($payment['amount'], 2); ?> лв.</td>
-                            <td><?php echo htmlspecialchars($payment['payment_method']); ?></td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-            <?php else: ?>
-            <p class="text-muted">Няма намерени плащания.</p>
-            <?php endif; ?>
         </div>
     </div>
 
