@@ -249,61 +249,6 @@ try {
                 </table>
             </div>
         </div>
-
-        <!-- След таблицата с всички такси добавям таблица за разпределение по апартаменти -->
-        <div class="card p-3 mb-4">
-            <h5><i class="fas fa-table"></i> Разпределение на такси по апартаменти</h5>
-            <div class="table-responsive">
-                <table class="table table-striped table-bordered table-sm">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Такса (ID)</th>
-                            <th>Тип</th>
-                            <th>Обща сума</th>
-                            <th>Апартамент</th>
-                            <th>Сума за апартамент</th>
-                            <th>Описание</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($fee_distributions as $row): ?>
-                        <tr>
-                            <td><?php echo $row['id']; ?></td>
-                            <td><?php echo $row['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?></td>
-                            <td><?php echo number_format($row['amount'], 2); ?></td>
-                            <td><?php echo htmlspecialchars($row['building_name'] . ' - ' . $row['apartment_number']); ?></td>
-                            <td><?php echo number_format($row['apartment_amount'], 2); ?></td>
-                            <td><?php echo htmlspecialchars($row['description']); ?></td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="grid">
-            <?php foreach ($payments as $payment): ?>
-            <div class="card">
-                <h3><i class="fas fa-money-check-alt"></i> Плащане</h3>
-                <p><strong><i class="fas fa-building"></i> Сграда:</strong> <?php echo htmlspecialchars($payment['building_name']); ?></p>
-                <p><strong><i class="fas fa-home"></i> Апартамент:</strong> <?php echo htmlspecialchars($payment['apartment_number']); ?></p>
-                <p><strong><i class="fas fa-money-bill-wave"></i> Сума:</strong> <?php echo number_format($payment['amount'], 2); ?> лв.</p>
-                <p><strong><i class="fas fa-calendar"></i> Дата на плащане:</strong> <?php echo date('d.m.Y', strtotime($payment['payment_date'])); ?></p>
-                <p><strong><i class="fas fa-credit-card"></i> Метод на плащане:</strong> <?php echo htmlspecialchars($payment['payment_method']); ?></p>
-                <?php if ($payment['notes']): ?>
-                <p><strong><i class="fas fa-info-circle"></i> Бележки:</strong> <?php echo htmlspecialchars($payment['notes']); ?></p>
-                <?php endif; ?>
-                <div class="payment-actions">
-                    <button class="btn btn-warning" onclick="showEditModal(<?php echo htmlspecialchars(json_encode($payment)); ?>)">
-                        <i class="fas fa-edit"></i> Редактирай
-                    </button>
-                    <button class="btn btn-danger" onclick="deletePayment(<?php echo $payment['id']; ?>)">
-                        <i class="fas fa-trash"></i> Изтрий
-                    </button>
-                </div>
-            </div>
-            <?php endforeach; ?>
-        </div>
     </div>
 
     <!-- Модален прозорец за добавяне -->
