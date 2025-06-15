@@ -636,7 +636,7 @@ require_once 'includes/styles.php';
       </div>
       <div class="tab-pane fade" id="debts" role="tabpanel">
         <div class="card mb-3 shadow-sm" style="font-size:0.95rem;">
-          <div class="card-header bg-danger text-white"><i class="fas fa-exclamation-circle"></i> Задължения (неплатени такси)</div>
+          <div class="card-header bg-danger text-white"><i class="fas fa-exclamation-circle"></i> Задължения по апартаменти</div>
           <div class="card-body p-3">
             <div class="table-responsive">
               <table class="table table-striped table-bordered table-sm">
@@ -645,20 +645,20 @@ require_once 'includes/styles.php';
                     <th>Апартамент</th>
                     <th>Баланс</th>
                     <th>Задължения</th>
-                    <th>Сума (лв.)</th>
-                    <th>Описание</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  <?php foreach ($unpaid_fees as $fee): ?>
+                  <?php foreach ($apartments as $apartment):
+                    $aid = $apartment['id'];
+                    $debt = $apartmentDebts[$aid] ?? 0;
+                    if ($debt == 0) continue;
+                  ?>
                   <tr>
-                    <td><?php echo htmlspecialchars($fee['building_name'] . ' - ' . $fee['apartment_number']); ?></td>
-                    <td><?php echo number_format($apartments[array_search($fee['apartment_id'], array_column($apartments, 'id'))]['balance'] ?? 0, 2); ?> лв.</td>
-                    <td><?php echo number_format($apartmentDebts[$fee['apartment_id']] ?? 0, 2); ?> лв.</td>
-                    <td><?php echo number_format($fee['amount'], 2); ?></td>
-                    <td><?php echo htmlspecialchars($fee['description']); ?></td>
-                    <td><button class="btn btn-success btn-sm pay-fee-btn" data-fee='<?php echo json_encode($fee); ?>'><i class="fas fa-credit-card"></i> Плати</button></td>
+                    <td><?php echo htmlspecialchars($apartment['building_name'] . ' - ' . $apartment['number']); ?></td>
+                    <td><?php echo number_format($apartment['balance'], 2); ?> лв.</td>
+                    <td><?php echo number_format($debt, 2); ?> лв.</td>
+                    <td><button class="btn btn-success btn-sm pay-apartment-btn" data-apartment='<?php echo json_encode($apartment); ?>'><i class="fas fa-credit-card"></i> Плати</button></td>
                   </tr>
                   <?php endforeach; ?>
                 </tbody>
@@ -666,34 +666,32 @@ require_once 'includes/styles.php';
             </div>
           </div>
         </div>
-        <!-- Модален прозорец за плащане на такса (като в payments.php) -->
-        <div id="payFeeModal" class="modal fade" tabindex="-1">
+        <!-- Модал за плащане на задължения на апартамент -->
+        <div id="payApartmentModal" class="modal fade" tabindex="-1">
           <div class="modal-dialog">
             <div class="modal-content">
               <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-credit-card"></i> Плащане на такса</h5>
+                <h5 class="modal-title"><i class="fas fa-credit-card"></i> Плащане на задължения</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
               </div>
               <div class="modal-body">
-                <form method="POST">
+                <form method="POST" id="payApartmentForm">
                   <input type="hidden" name="action" value="add_payment">
-                  <input type="hidden" name="apartment_id" id="pay_apartment_id">
-                  <input type="hidden" name="fee_id" id="pay_fee_id">
+                  <input type="hidden" name="apartment_id" id="pay_apartment_modal_id">
                   <div class="mb-3">
                     <label class="form-label">Апартамент:</label>
-                    <input type="text" class="form-control" id="pay_apartment_info" readonly>
+                    <input type="text" class="form-control" id="pay_apartment_modal_info" readonly>
                   </div>
                   <div class="mb-3">
-                    <label class="form-label">Сума (лв.):</label>
-                    <input type="number" class="form-control" id="pay_amount" name="amount" step="0.01" min="0" readonly>
+                    <label class="form-label">Избери задължения за плащане:</label>
+                    <div id="apartmentDebtsList" class="border p-2 rounded" style="max-height: 200px; overflow-y: auto;"></div>
                   </div>
                   <div class="mb-3">
-                    <label class="form-label">Дата на плащане:</label>
-                    <input type="date" class="form-control" name="payment_date" value="<?php echo date('Y-m-d'); ?>" required>
+                    <label class="form-label">Обща сума за плащане: <span id="totalApartmentPayment">0.00</span> лв.</label>
                   </div>
                   <div class="mb-3">
                     <label class="form-label">Метод на плащане:</label>
-                    <select class="form-control" name="payment_method" id="pay_payment_method" required>
+                    <select class="form-control" name="payment_method" id="pay_apartment_payment_method" required>
                       <?php foreach ($payment_methods as $method): ?>
                       <option value="<?php echo $method; ?>"><?php echo $method; ?></option>
                       <?php endforeach; ?>
@@ -881,6 +879,61 @@ if (payPaymentMethod) {
       const amount = parseFloat(document.getElementById('pay_amount').value);
       const balance = parseFloat(apartmentBalances[apartmentId] || 0);
       if (amount > balance) {
+        alert('Недостатъчен баланс!');
+        this.value = '';
+      }
+    }
+  });
+}
+
+const apartmentBalances = <?php echo json_encode(array_column($apartments, 'balance', 'id')); ?>;
+// Показване на модал за плащане на апартамент
+Array.from(document.querySelectorAll('.pay-apartment-btn')).forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var apartment = JSON.parse(this.getAttribute('data-apartment'));
+    var aid = apartment.id;
+    document.getElementById('pay_apartment_modal_id').value = aid;
+    document.getElementById('pay_apartment_modal_info').value = apartment.building_name + ' - ' + apartment.number;
+    // Зареждане на задълженията
+    var debts = unpaidFees.filter(fee => fee.apartment_id == aid);
+    var list = document.getElementById('apartmentDebtsList');
+    list.innerHTML = '';
+    debts.forEach(function(fee, i) {
+      var div = document.createElement('div');
+      div.className = 'form-check mb-2';
+      div.innerHTML = `
+        <input class="form-check-input debt-checkbox" type="checkbox" name="selected_fees[]" value="${fee.id}" data-amount="${fee.amount}" checked>
+        <label class="form-check-label">${fee.description} - ${fee.amount} лв.</label>
+      `;
+      list.appendChild(div);
+    });
+    updateTotalApartmentPayment();
+    var modal = new bootstrap.Modal(document.getElementById('payApartmentModal'));
+    modal.show();
+  });
+});
+function updateTotalApartmentPayment() {
+  const checkboxes = document.querySelectorAll('.debt-checkbox:checked');
+  let total = 0;
+  checkboxes.forEach(cb => {
+    total += parseFloat(cb.dataset.amount);
+  });
+  document.getElementById('totalApartmentPayment').textContent = total.toFixed(2);
+}
+document.addEventListener('change', function(e) {
+  if (e.target.classList.contains('debt-checkbox')) updateTotalApartmentPayment();
+});
+// При избор на "от баланс" проверка за достатъчен баланс
+const payApartmentPaymentMethod = document.getElementById('pay_apartment_payment_method');
+if (payApartmentPaymentMethod) {
+  payApartmentPaymentMethod.addEventListener('change', function() {
+    if (this.value === 'от баланс') {
+      const aid = document.getElementById('pay_apartment_modal_id').value;
+      const checkboxes = document.querySelectorAll('.debt-checkbox:checked');
+      let total = 0;
+      checkboxes.forEach(cb => { total += parseFloat(cb.dataset.amount); });
+      const balance = parseFloat(apartmentBalances[aid] || 0);
+      if (total > balance) {
         alert('Недостатъчен баланс!');
         this.value = '';
       }
