@@ -111,7 +111,7 @@ try {
         $params[] = $currentBuilding['id'];
     }
     
-    $query .= " ORDER BY f.year DESC, f.month DESC, b.name, a.number";
+    $query .= " ORDER BY f.created_at DESC, b.name, a.number";
     
     $stmt = $pdo->prepare($query);
     $stmt->execute($params);
@@ -119,7 +119,7 @@ try {
     
     // Вземане на плащанията според избраната сграда
     $query = "
-        SELECT p.*, a.number as apartment_number, b.name as building_name, f.month, f.year 
+        SELECT p.*, a.number as apartment_number, b.name as building_name, f.created_at 
         FROM payments p 
         JOIN apartments a ON p.apartment_id = a.id 
         JOIN buildings b ON a.building_id = b.id 
@@ -132,7 +132,7 @@ try {
         $params[] = $currentBuilding['id'];
     }
     
-    $query .= " ORDER BY p.payment_date DESC, b.name, a.number";
+    $query .= " ORDER BY p.created_at DESC, b.name, a.number";
     
     $stmt = $pdo->prepare($query);
     $stmt->execute($params);

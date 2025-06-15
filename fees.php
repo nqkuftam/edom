@@ -154,7 +154,7 @@ try {
         $params[] = $currentBuilding['id'];
     }
     
-    $query .= " ORDER BY f.month DESC, b.name, a.number";
+    $query .= " ORDER BY f.created_at DESC, b.name, a.number";
     
     $stmt = $pdo->prepare($query);
     $stmt->execute($params);

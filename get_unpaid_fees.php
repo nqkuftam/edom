@@ -42,7 +42,7 @@ $stmt = $pdo->prepare("
     JOIN buildings b ON a.building_id = b.id 
     WHERE f.apartment_id = ? 
     AND f.id NOT IN (SELECT fee_id FROM payments)
-    ORDER BY f.year DESC, f.month DESC
+    ORDER BY f.created_at DESC
 ");
 $stmt->execute([$apartment_id]);
 $fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
