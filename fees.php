@@ -33,17 +33,17 @@ try {
                 case 'add_fee':
                     $type = $_POST['type'] ?? '';
                     $months_count = (int)($_POST['months_count'] ?? 1);
-                    $total_amount = (float)($_POST['total_amount'] ?? 0);
+                    $amount = (float)($_POST['amount'] ?? 0);
                     $distribution_method = $_POST['distribution_method'] ?? '';
                     $description = $_POST['description'] ?? '';
                     $amounts = $_POST['amounts'] ?? [];
                     
-                    if (!empty($type) && $total_amount > 0 && !empty($distribution_method) && !empty($amounts)) {
+                    if (!empty($type) && $amount > 0 && !empty($distribution_method) && !empty($amounts)) {
                         $pdo->beginTransaction();
                         try {
                             // 1. Създаване на обща такса
-                            $stmt = $pdo->prepare("INSERT INTO fees (type, total_amount, description, distribution_method, months_count) VALUES (?, ?, ?, ?, ?)");
-                            $stmt->execute([$type, $total_amount, $description, $distribution_method, $months_count]);
+                            $stmt = $pdo->prepare("INSERT INTO fees (type, amount, description, distribution_method, months_count) VALUES (?, ?, ?, ?, ?)");
+                            $stmt->execute([$type, $amount, $description, $distribution_method, $months_count]);
                             $fee_id = $pdo->lastInsertId();
                             // 2. Създаване на разпределение по апартаменти
                             $stmt2 = $pdo->prepare("INSERT INTO fee_apartments (fee_id, apartment_id, amount) VALUES (?, ?, ?)");
@@ -165,14 +165,14 @@ try {
             $monthly_fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($monthly_fees as $fee) {
                 // Създай нова такса за този месец
-                $stmt = $pdo->prepare("INSERT INTO fees (type, total_amount, description, distribution_method, months_count) VALUES (?, ?, ?, ?, ?)");
+                $stmt = $pdo->prepare("INSERT INTO fees (type, amount, description, distribution_method, months_count) VALUES (?, ?, ?, ?, ?)");
                 $desc = ($fee['description'] ? $fee['description'].' ' : '').'(Автоматично генерирана '.date('m.Y').')';
-                $stmt->execute(['monthly', $fee['total_amount'], $desc, $fee['distribution_method'], 1]);
+                $stmt->execute(['monthly', $fee['amount'], $desc, $fee['distribution_method'], 1]);
                 $fee_id = $pdo->lastInsertId();
                 // Разпредели по апартаменти
                 $stmt2 = $pdo->prepare("INSERT INTO fee_apartments (fee_id, apartment_id, amount) VALUES (?, ?, ?)");
                 // ... тук можеш да добавиш логика за разпределение според метода ...
-                $per = $fee['total_amount'] / count($apartments);
+                $per = $fee['amount'] / count($apartments);
                 foreach ($apartments as $apartment) {
                     $stmt2->execute([$fee_id, $apartment['id'], $per]);
                 }
@@ -255,7 +255,7 @@ try {
                                 }
                                 ?>
                             </td>
-                            <td><?php echo number_format($fee['total_amount'], 2); ?></td>
+                            <td><?php echo number_format($fee['amount'], 2); ?></td>
                             <td><?php echo htmlspecialchars($fee['description']); ?></td>
                             <td>
                                 <button class="btn btn-warning btn-sm" onclick='showEditModal(<?php echo htmlspecialchars(json_encode($fee)); ?>)'><i class="fas fa-edit"></i></button>
@@ -293,8 +293,8 @@ try {
                             <input type="number" class="form-control" id="months_count" name="months_count" min="1" value="1">
                         </div>
                         <div class="form-group">
-                            <label for="total_amount" class="form-label">Обща сума за разпределение (лв.):</label>
-                            <input type="number" class="form-control" id="total_amount" name="total_amount" step="0.01" min="0" value="0" oninput="distributeAmounts()">
+                            <label for="amount" class="form-label">Обща сума за разпределение (лв.):</label>
+                            <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0" value="0" oninput="distributeAmounts()">
                         </div>
                         <div class="form-group">
                             <label for="distribution_method" class="form-label">Метод на разпределение:</label>
@@ -371,8 +371,8 @@ try {
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="edit_total_amount" class="form-label">Обща сума за разпределение (лв.):</label>
-                            <input type="number" class="form-control" id="edit_total_amount" name="total_amount" step="0.01" min="0" value="0">
+                            <label for="edit_amount" class="form-label">Обща сума за разпределение (лв.):</label>
+                            <input type="number" class="form-control" id="edit_amount" name="amount" step="0.01" min="0" value="0">
                         </div>
                         <div class="form-group">
                             <label for="edit_description" class="form-label">Описание:</label>
@@ -400,7 +400,7 @@ try {
             document.getElementById('edit_type').value = fee.type;
             document.getElementById('edit_months_count').value = fee.months_count;
             document.getElementById('edit_distribution_method').value = fee.distribution_method;
-            document.getElementById('edit_total_amount').value = fee.total_amount;
+            document.getElementById('edit_amount').value = fee.amount;
             document.getElementById('edit_description').value = fee.description;
             
             var modal = new bootstrap.Modal(document.getElementById('editModal'));
@@ -428,7 +428,7 @@ try {
 
         // Функция за преизчисляване на сумите при промяна на конкретна сума
         function recalculateAmounts(changedInput) {
-            var total = parseFloat(document.getElementById('total_amount').value) || 0;
+            var total = parseFloat(document.getElementById('amount').value) || 0;
             var method = document.getElementById('distribution_method').value;
             var rows = document.querySelectorAll('#distribution_table tbody tr');
             var changedValue = parseFloat(changedInput.value) || 0;
@@ -495,7 +495,7 @@ try {
         }
 
         function distributeAmounts() {
-            var total = parseFloat(document.getElementById('total_amount').value) || 0;
+            var total = parseFloat(document.getElementById('amount').value) || 0;
             var method = document.getElementById('distribution_method').value;
             var rows = document.querySelectorAll('#distribution_table tbody tr');
             

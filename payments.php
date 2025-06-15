@@ -280,7 +280,7 @@ try {
                         <tr>
                             <td><?php echo $row['id']; ?></td>
                             <td><?php echo $row['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?></td>
-                            <td><?php echo number_format($row['total_amount'], 2); ?></td>
+                            <td><?php echo number_format($row['amount'], 2); ?></td>
                             <td><?php echo htmlspecialchars($row['building_name'] . ' - ' . $row['apartment_number']); ?></td>
                             <td><?php echo number_format($row['apartment_amount'], 2); ?></td>
                             <td><?php echo htmlspecialchars($row['description']); ?></td>
