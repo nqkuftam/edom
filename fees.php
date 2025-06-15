@@ -44,9 +44,7 @@ try {
                         
                         try {
                             // Добавяме такса за всеки апартамент
-                            $stmt = $pdo->prepare("INSERT INTO fees (apartment_id, month, amount, description, type, months_count, distribution_method, total_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                            
-                            $current_month = date('n') - 1; // 0-11
+                            $stmt = $pdo->prepare("INSERT INTO fees (apartment_id, amount, description, type, months_count, distribution_method, total_amount) VALUES (?, ?, ?, ?, ?, ?, ?)");
                             
                             foreach ($amounts as $apartment_id => $amount) {
                                 if ($amount > 0) {
@@ -54,7 +52,6 @@ try {
                                     if ($type === 'monthly') {
                                         $stmt->execute([
                                             $apartment_id,
-                                            $months[$current_month],
                                             $amount,
                                             $description,
                                             $type,
@@ -66,10 +63,8 @@ try {
                                     // За временна такса
                                     else {
                                         for ($i = 0; $i < $months_count; $i++) {
-                                            $month_index = ($current_month + $i) % 12;
                                             $stmt->execute([
                                                 $apartment_id,
-                                                $months[$month_index],
                                                 $amount,
                                                 $description,
                                                 $type,

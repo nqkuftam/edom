@@ -214,8 +214,6 @@ try {
                     <thead class="table-dark">
                         <tr>
                             <th>Апартамент</th>
-                            <th>Месец</th>
-                            <th>Година</th>
                             <th>Сума (лв.)</th>
                             <th>Описание</th>
                             <th>Статус</th>
@@ -234,8 +232,6 @@ try {
                         ?>
                         <tr>
                             <td><?php echo htmlspecialchars($fee['building_name'] . ' - ' . $fee['apartment_number']); ?></td>
-                            <td><?php echo htmlspecialchars($fee['month']); ?></td>
-                            <td><?php echo htmlspecialchars($fee['year']); ?></td>
                             <td><?php echo number_format($fee['amount'], 2); ?></td>
                             <td><?php echo htmlspecialchars($fee['description']); ?></td>
                             <td><span class="badge bg-danger">Неплатена</span> <button class="btn btn-success btn-sm pay-fee-btn" data-fee='<?php echo json_encode($fee); ?>'><i class="fas fa-credit-card"></i> Плати</button></td>
