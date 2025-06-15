@@ -36,11 +36,11 @@ try {
                     $amount = (float)($_POST['amount'] ?? 0);
                     $payment_date = $_POST['payment_date'] ?? date('Y-m-d');
                     $payment_method = $_POST['payment_method'] ?? '';
-                    $description = $_POST['description'] ?? '';
+                    $notes = $_POST['notes'] ?? '';
                     
                     if ($apartment_id > 0 && $fee_id > 0 && $amount > 0) {
-                        $stmt = $pdo->prepare("INSERT INTO payments (apartment_id, fee_id, amount, payment_date, payment_method, description) VALUES (?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$apartment_id, $fee_id, $amount, $payment_date, $payment_method, $description]);
+                        $stmt = $pdo->prepare("INSERT INTO payments (apartment_id, fee_id, amount, payment_date, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$apartment_id, $fee_id, $amount, $payment_date, $payment_method, $notes]);
                         $success = showSuccess('Плащането е добавено успешно.');
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
@@ -54,11 +54,11 @@ try {
                     $amount = (float)($_POST['amount'] ?? 0);
                     $payment_date = $_POST['payment_date'] ?? '';
                     $payment_method = $_POST['payment_method'] ?? '';
-                    $description = $_POST['description'] ?? '';
+                    $notes = $_POST['notes'] ?? '';
                     
                     if ($id > 0 && $apartment_id > 0 && $fee_id > 0 && $amount > 0) {
-                        $stmt = $pdo->prepare("UPDATE payments SET apartment_id = ?, fee_id = ?, amount = ?, payment_date = ?, payment_method = ?, description = ? WHERE id = ?");
-                        $stmt->execute([$apartment_id, $fee_id, $amount, $payment_date, $payment_method, $description, $id]);
+                        $stmt = $pdo->prepare("UPDATE payments SET apartment_id = ?, fee_id = ?, amount = ?, payment_date = ?, payment_method = ?, notes = ? WHERE id = ?");
+                        $stmt->execute([$apartment_id, $fee_id, $amount, $payment_date, $payment_method, $notes, $id]);
                         $success = showSuccess('Плащането е редактирано успешно.');
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
@@ -298,8 +298,8 @@ try {
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="description" class="form-label">Бележки:</label>
-                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                            <label for="notes" class="form-label">Бележки:</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
                         </div>
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
@@ -360,8 +360,8 @@ try {
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="edit_description" class="form-label">Бележки:</label>
-                            <textarea class="form-control" id="edit_description" name="description" rows="3"></textarea>
+                            <label for="edit_notes" class="form-label">Бележки:</label>
+                            <textarea class="form-control" id="edit_notes" name="notes" rows="3"></textarea>
                         </div>
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
@@ -408,7 +408,7 @@ try {
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Бележка:</label>
-                            <textarea class="form-control" name="description" rows="2"></textarea>
+                            <textarea class="form-control" name="notes" rows="2"></textarea>
                         </div>
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
@@ -437,7 +437,7 @@ try {
             document.getElementById('edit_amount').value = payment.amount;
             document.getElementById('edit_payment_date').value = payment.payment_date;
             document.getElementById('edit_payment_method').value = payment.payment_method;
-            document.getElementById('edit_description').value = payment.description;
+            document.getElementById('edit_notes').value = payment.notes;
             
             var modal = new bootstrap.Modal(document.getElementById('editModal'));
             modal.show();

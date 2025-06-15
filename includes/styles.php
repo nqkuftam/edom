@@ -292,9 +292,19 @@
             font-size: 1.2rem;
         }
         .nav-links {
-            flex-direction: column;
+            flex-direction: row;
             gap: 0.5rem;
-            width: 100%;
+            width: 100vw;
+            overflow-x: auto;
+            white-space: nowrap;
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
+            background: none;
+        }
+        .nav-links a {
+            min-width: 110px;
+            text-align: center;
+            display: inline-block;
         }
         .card {
             padding: 0.7rem;

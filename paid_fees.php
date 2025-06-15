@@ -131,6 +131,7 @@ $payment_methods = ['В брой', 'Банков превод', 'Карта', '�
                             <th>Дата</th>
                             <th>Метод</th>
                             <th>Описание</th>
+                            <th>Бележка</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -141,6 +142,7 @@ $payment_methods = ['В брой', 'Банков превод', 'Карта', '�
                             <td><?php echo htmlspecialchars($fee['payment_date']); ?></td>
                             <td><?php echo htmlspecialchars($fee['payment_method']); ?></td>
                             <td><?php echo htmlspecialchars($fee['fee_description']); ?></td>
+                            <td><?php echo htmlspecialchars($fee['notes']); ?></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
