@@ -92,6 +92,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         exit();
     }
 }
+
+// При обработка на POST заявка с action=delete_note, изтривам бележка от базата
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_note') {
+    $note_id = (int)($_POST['note_id'] ?? 0);
+    if ($note_id > 0) {
+        $stmt = $pdo->prepare("DELETE FROM building_notes WHERE id = ?");
+        $stmt->execute([$note_id]);
+        header('Location: index.php');
+        exit();
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="bg">
@@ -111,14 +122,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         </div>
     </div>
 
-    <div class="container-fluid">
+    <div class="container-fluid mt-4">
         <?php echo renderBuildingSelector(); ?>
         <div class="row">
             <!-- Лява колона -->
             <div class="col-md-3">
-                <div class="card mb-3">
+                <div class="card mb-3 shadow-sm">
                     <div class="card-body">
-                        <h5 class="card-title">Управление</h5>
+                        <h5 class="card-title"><i class="fas fa-cog"></i> Управление</h5>
                         <p><strong>Силвия Великова</strong><br><a href="mailto:es.silistra@gmail.com">es.silistra@gmail.com</a></p>
                         <hr>
                         <ul class="list-unstyled mb-3">
@@ -128,15 +139,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     </div>
                 </div>
                 <!-- Бележки -->
-                <div class="card mb-3">
+                <div class="card mb-3 shadow-sm">
                     <div class="card-body">
-                        <h5 class="card-title">Бележки</h5>
+                        <h5 class="card-title"><i class="fas fa-sticky-note"></i> Бележки</h5>
                         <ul class="list-group mb-3">
                             <?php foreach ($notes as $n): ?>
                             <li class="list-group-item small">
                                 <span class="text-muted"><?php echo date('Y-m-d', strtotime($n['created_at'])); ?></span>
                                 <?php if ($n['username']): ?> - <b><?php echo htmlspecialchars($n['username']); ?></b><?php endif; ?>
                                 - <?php echo htmlspecialchars($n['note']); ?>
+                                <button class="btn btn-outline-danger btn-sm float-end" onclick="deleteNote(<?php echo $n['id']; ?>)"><i class="fas fa-trash"></i></button>
                             </li>
                             <?php endforeach; ?>
                         </ul>
@@ -162,9 +174,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         </div> -->
                     </div>
                     <div class="col-md-6">
-                        <div class="card mb-3">
+                        <div class="card mb-3 shadow-sm">
                             <div class="card-body">
-                                <h5 class="card-title">Каси</h5>
+                                <h5 class="card-title"><i class="fas fa-cash-register"></i> Каси</h5>
                                 <?php if ($cashboxes): ?>
                                 <table class="table table-sm mt-3">
                                     <thead>
@@ -191,5 +203,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    function deleteNote(id) {
+        if (confirm('Сигурни ли сте, че искате да изтриете тази бележка?')) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.innerHTML = '<input type="hidden" name="action" value="delete_note"><input type="hidden" name="note_id" value="' + id + '">';
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+    </script>
 </body>
 </html>

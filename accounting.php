@@ -58,6 +58,16 @@ if (
         exit();
     }
 }
+// Изтриване на каса
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_cashbox') {
+    $cashbox_id = (int)($_POST['cashbox_id'] ?? 0);
+    if ($cashbox_id > 0) {
+        $stmt = $pdo->prepare("DELETE FROM cashboxes WHERE id = ?");
+        $stmt->execute([$cashbox_id]);
+        header('Location: accounting.php');
+        exit();
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="bg">
@@ -104,8 +114,7 @@ if (
                                         <td class="fw-bold"><i class="fas fa-wallet me-1"></i> <?php echo htmlspecialchars($cb['name']); ?></td>
                                         <td class="text-end text-primary fw-bold"><?php echo number_format($cb['balance'], 2); ?> лв.</td>
                                         <td class="text-center">
-                                            <button class="btn btn-outline-success btn-sm me-1" data-bs-toggle="modal" data-bs-target="#cashInModal<?php echo $cb['id']; ?>"><i class="fas fa-arrow-down"></i> Внасяне</button>
-                                            <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#cashOutModal<?php echo $cb['id']; ?>"><i class="fas fa-arrow-up"></i> Изваждане</button>
+                                            <button class="btn btn-outline-danger btn-sm" onclick="deleteCashbox(<?php echo $cb['id']; ?>)"><i class="fas fa-trash"></i> Изтрий</button>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -195,5 +204,16 @@ if (
     </div></div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function deleteCashbox(id) {
+    if (confirm('Сигурни ли сте, че искате да изтриете тази каса?')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.innerHTML = '<input type="hidden" name="action" value="delete_cashbox"><input type="hidden" name="cashbox_id" value="' + id + '">';
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
 </body>
 </html> 
