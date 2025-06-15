@@ -44,10 +44,9 @@ try {
                         
                         try {
                             // Добавяме такса за всеки апартамент
-                            $stmt = $pdo->prepare("INSERT INTO fees (apartment_id, month, year, amount, description, type, months_count, distribution_method, total_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            $stmt = $pdo->prepare("INSERT INTO fees (apartment_id, month, amount, description, type, months_count, distribution_method, total_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                             
                             $current_month = date('n') - 1; // 0-11
-                            $current_year = date('Y');
                             
                             foreach ($amounts as $apartment_id => $amount) {
                                 if ($amount > 0) {
@@ -56,7 +55,6 @@ try {
                                         $stmt->execute([
                                             $apartment_id,
                                             $months[$current_month],
-                                            $current_year,
                                             $amount,
                                             $description,
                                             $type,
@@ -69,12 +67,9 @@ try {
                                     else {
                                         for ($i = 0; $i < $months_count; $i++) {
                                             $month_index = ($current_month + $i) % 12;
-                                            $year = $current_year + floor(($current_month + $i) / 12);
-                                            
                                             $stmt->execute([
                                                 $apartment_id,
                                                 $months[$month_index],
-                                                $year,
                                                 $amount,
                                                 $description,
                                                 $type,
@@ -102,13 +97,12 @@ try {
                     $id = (int)($_POST['id'] ?? 0);
                     $apartment_id = (int)($_POST['apartment_id'] ?? 0);
                     $month = $_POST['month'] ?? '';
-                    $year = (int)($_POST['year'] ?? 0);
                     $amount = (float)($_POST['amount'] ?? 0);
                     $description = $_POST['description'] ?? '';
                     
-                    if ($id > 0 && $apartment_id > 0 && !empty($month) && $year > 0 && $amount > 0) {
-                        $stmt = $pdo->prepare("UPDATE fees SET apartment_id = ?, month = ?, year = ?, amount = ?, description = ? WHERE id = ?");
-                        $stmt->execute([$apartment_id, $month, $year, $amount, $description, $id]);
+                    if ($id > 0 && $apartment_id > 0 && !empty($month) && $amount > 0) {
+                        $stmt = $pdo->prepare("UPDATE fees SET apartment_id = ?, month = ?, amount = ?, description = ? WHERE id = ?");
+                        $stmt->execute([$apartment_id, $month, $amount, $description, $id]);
                         $success = showSuccess('Таксата е редактирана успешно.');
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
@@ -160,7 +154,7 @@ try {
         $params[] = $currentBuilding['id'];
     }
     
-    $query .= " ORDER BY f.year DESC, f.month DESC, b.name, a.number";
+    $query .= " ORDER BY f.month DESC, b.name, a.number";
     
     $stmt = $pdo->prepare($query);
     $stmt->execute($params);
@@ -450,12 +444,79 @@ try {
         }
         document.getElementById('type').addEventListener('change', toggleMonthsCount);
 
+        // Функция за преизчисляване на сумите при промяна на конкретна сума
+        function recalculateAmounts(changedInput) {
+            var total = parseFloat(document.getElementById('total_amount').value) || 0;
+            var method = document.getElementById('distribution_method').value;
+            var rows = document.querySelectorAll('#distribution_table tbody tr');
+            var changedValue = parseFloat(changedInput.value) || 0;
+            var changedIndex = Array.from(rows).indexOf(changedInput.closest('tr'));
+            
+            // Ако методът е равномерно разпределение
+            if (method === 'equal') {
+                var remainingTotal = total - changedValue;
+                var remainingApartments = rows.length - 1;
+                var perApartment = remainingTotal / remainingApartments;
+                
+                rows.forEach(function(row, index) {
+                    if (index !== changedIndex) {
+                        row.querySelector('.amount-input').value = perApartment.toFixed(2);
+                    }
+                });
+            }
+            // Ако методът е по брой хора
+            else if (method === 'by_people') {
+                var people = <?php echo json_encode(array_column($apartments, 'people_count', 'id')); ?>;
+                var changedPeople = parseInt(people[Object.keys(people)[changedIndex]]) || 1;
+                var remainingTotal = total - changedValue;
+                var remainingPeople = 0;
+                
+                rows.forEach(function(row, index) {
+                    if (index !== changedIndex) {
+                        var id = Object.keys(people)[index];
+                        remainingPeople += parseInt(people[id]) || 1;
+                    }
+                });
+                
+                rows.forEach(function(row, index) {
+                    if (index !== changedIndex) {
+                        var id = Object.keys(people)[index];
+                        var peopleCount = parseInt(people[id]) || 1;
+                        var newValue = remainingTotal * (peopleCount / remainingPeople);
+                        row.querySelector('.amount-input').value = newValue.toFixed(2);
+                    }
+                });
+            }
+            // Ако методът е по площ
+            else if (method === 'by_area') {
+                var areas = <?php echo json_encode(array_column($apartments, 'area', 'id')); ?>;
+                var changedArea = parseFloat(areas[Object.keys(areas)[changedIndex]]) || 0;
+                var remainingTotal = total - changedValue;
+                var remainingArea = 0;
+                
+                rows.forEach(function(row, index) {
+                    if (index !== changedIndex) {
+                        var id = Object.keys(areas)[index];
+                        remainingArea += parseFloat(areas[id]) || 0;
+                    }
+                });
+                
+                rows.forEach(function(row, index) {
+                    if (index !== changedIndex) {
+                        var id = Object.keys(areas)[index];
+                        var area = parseFloat(areas[id]) || 0;
+                        var newValue = remainingTotal * (area / remainingArea);
+                        row.querySelector('.amount-input').value = newValue.toFixed(2);
+                    }
+                });
+            }
+        }
+
         function distributeAmounts() {
             var total = parseFloat(document.getElementById('total_amount').value) || 0;
             var method = document.getElementById('distribution_method').value;
             var rows = document.querySelectorAll('#distribution_table tbody tr');
-            var values = [];
-            var sum = 0;
+            
             if (method === 'equal') {
                 var per = total / rows.length;
                 rows.forEach(function(row) {
@@ -487,6 +548,16 @@ try {
                 });
             }
         }
+
+        // Добавяме event listener за промяна на сумите
+        document.addEventListener('DOMContentLoaded', function() {
+            var amountInputs = document.querySelectorAll('.amount-input');
+            amountInputs.forEach(function(input) {
+                input.addEventListener('input', function() {
+                    recalculateAmounts(this);
+                });
+            });
+        });
     </script>
 </body>
 </html>
