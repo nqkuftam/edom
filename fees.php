@@ -263,8 +263,12 @@ try {
                             <input type="number" class="form-control" id="months_count" name="months_count" min="1" value="1">
                         </div>
                         <div class="form-group">
+                            <label for="total_amount" class="form-label">Обща сума за разпределение (лв.):</label>
+                            <input type="number" class="form-control" id="total_amount" name="total_amount" step="0.01" min="0" value="0" oninput="distributeAmounts()">
+                        </div>
+                        <div class="form-group">
                             <label for="distribution_method" class="form-label">Метод на разпределение:</label>
-                            <select class="form-control" id="distribution_method" name="distribution_method" required>
+                            <select class="form-control" id="distribution_method" name="distribution_method" required onchange="distributeAmounts()">
                                 <option value="equal">Равномерно</option>
                                 <option value="by_people">По брой хора</option>
                                 <option value="by_area">По площ (м²)</option>
@@ -272,12 +276,29 @@ try {
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="total_amount" class="form-label">Обща сума за разпределение (лв.):</label>
-                            <input type="number" class="form-control" id="total_amount" name="total_amount" step="0.01" min="0" value="0">
-                        </div>
-                        <div class="form-group">
                             <label for="description" class="form-label">Описание:</label>
                             <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Разпределение по апартаменти:</label>
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-sm" id="distribution_table">
+                                    <thead>
+                                        <tr>
+                                            <th>Апартамент</th>
+                                            <th>Сума (лв.)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($apartments as $apartment): ?>
+                                        <tr>
+                                            <td><?php echo htmlspecialchars($apartment['building_name'] . ' - ' . $apartment['number']); ?></td>
+                                            <td><input type="number" class="form-control amount-input" name="amounts[<?php echo $apartment['id']; ?>]" step="0.01" min="0" value="0"></td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
@@ -376,6 +397,56 @@ try {
             document.getElementById('months_count_group').style.display = (type === 'temporary') ? 'block' : 'none';
         }
         document.getElementById('type').addEventListener('change', toggleMonthsCount);
+
+        function distributeAmounts() {
+            var total = parseFloat(document.getElementById('total_amount').value) || 0;
+            var method = document.getElementById('distribution_method').value;
+            var rows = document.querySelectorAll('#distribution_table tbody tr');
+            var values = [];
+            var sum = 0;
+            if (method === 'equal') {
+                var per = total / rows.length;
+                rows.forEach(function(row) {
+                    row.querySelector('.amount-input').value = per.toFixed(2);
+                });
+            } else if (method === 'by_people') {
+                var people = <?php echo json_encode(array_column($apartments, 'people_count', 'id')); ?>;
+                var totalPeople = 0;
+                rows.forEach(function(row, i) {
+                    var id = Object.keys(people)[i];
+                    totalPeople += parseInt(people[id]) || 1;
+                });
+                rows.forEach(function(row, i) {
+                    var id = Object.keys(people)[i];
+                    var val = totalPeople ? total * (parseInt(people[id]) || 1) / totalPeople : 0;
+                    row.querySelector('.amount-input').value = val.toFixed(2);
+                });
+            } else if (method === 'by_area') {
+                var areas = <?php echo json_encode(array_column($apartments, 'area', 'id')); ?>;
+                var totalArea = 0;
+                rows.forEach(function(row, i) {
+                    var id = Object.keys(areas)[i];
+                    totalArea += parseFloat(areas[id]) || 0;
+                });
+                rows.forEach(function(row, i) {
+                    var id = Object.keys(areas)[i];
+                    var val = totalArea ? total * (parseFloat(areas[id]) || 0) / totalArea : 0;
+                    row.querySelector('.amount-input').value = val.toFixed(2);
+                });
+            } else if (method === 'by_elevator') {
+                var uses = <?php echo json_encode(array_column($apartments, 'elevator_uses', 'id')); ?>;
+                var totalUses = 0;
+                rows.forEach(function(row, i) {
+                    var id = Object.keys(uses)[i];
+                    totalUses += parseInt(uses[id]) || 0;
+                });
+                rows.forEach(function(row, i) {
+                    var id = Object.keys(uses)[i];
+                    var val = totalUses ? total * (parseInt(uses[id]) || 0) / totalUses : 0;
+                    row.querySelector('.amount-input').value = val.toFixed(2);
+                });
+            }
+        }
     </script>
 </body>
 </html>
