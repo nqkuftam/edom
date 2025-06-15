@@ -115,40 +115,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <?php require_once 'includes/styles.php'; ?>
 </head>
 <body>
-    <div class="header">
-        <div class="header-content">
-            <h1>Електронен Домоуправител</h1>
+    <div class="header mb-4">
+        <div class="header-content container">
+            <h1 class="display-5 fw-bold mb-0"><i class="fas fa-home"></i> Електронен Домоуправител</h1>
             <?php echo renderNavigation('index'); ?>
         </div>
     </div>
 
-    <div class="container-fluid mt-4">
-        <?php echo renderBuildingSelector(); ?>
+    <div class="container">
+        <div class="row mb-3">
+            <div class="col-12">
+                <?php echo renderBuildingSelector(); ?>
+            </div>
+        </div>
         <div class="row">
             <!-- Лява колона -->
-            <div class="col-md-3">
-                <div class="card mb-3 shadow-sm">
+            <div class="col-md-4 col-lg-3 mb-4">
+                <div class="card shadow-sm mb-4">
                     <div class="card-body">
-                        <h5 class="card-title"><i class="fas fa-cog"></i> Управление</h5>
+                        <h5 class="card-title mb-3"><i class="fas fa-cog"></i> Управление</h5>
                         <p><strong>Силвия Великова</strong><br><a href="mailto:es.silistra@gmail.com">es.silistra@gmail.com</a></p>
                         <hr>
-                        <ul class="list-unstyled mb-3">
-                            <li><i class="fas fa-building"></i> <a href="apartments.php">Имоти</a></li>
+                        <ul class="list-unstyled mb-0">
+                            <li class="mb-2"><i class="fas fa-building"></i> <a href="apartments.php">Имоти</a></li>
                             <li><i class="fas fa-euro-sign"></i> <a href="accounting.php">Счетоводство</a></li>
                         </ul>
                     </div>
                 </div>
-                <!-- Бележки -->
-                <div class="card mb-3 shadow-sm">
+                <div class="card shadow-sm">
                     <div class="card-body">
-                        <h5 class="card-title"><i class="fas fa-sticky-note"></i> Бележки</h5>
+                        <h5 class="card-title mb-3"><i class="fas fa-sticky-note"></i> Бележки</h5>
                         <ul class="list-group mb-3">
                             <?php foreach ($notes as $n): ?>
-                            <li class="list-group-item small">
-                                <span class="text-muted"><?php echo date('Y-m-d', strtotime($n['created_at'])); ?></span>
-                                <?php if ($n['username']): ?> - <b><?php echo htmlspecialchars($n['username']); ?></b><?php endif; ?>
-                                - <?php echo htmlspecialchars($n['note']); ?>
-                                <button class="btn btn-outline-danger btn-sm float-end" onclick="deleteNote(<?php echo $n['id']; ?>)"><i class="fas fa-trash"></i></button>
+                            <li class="list-group-item small d-flex align-items-center justify-content-between">
+                                <span>
+                                    <span class="text-muted"><?php echo date('Y-m-d', strtotime($n['created_at'])); ?></span>
+                                    <?php if ($n['username']): ?> - <b><?php echo htmlspecialchars($n['username']); ?></b><?php endif; ?>
+                                    - <?php echo htmlspecialchars($n['note']); ?>
+                                </span>
+                                <button class="btn btn-outline-danger btn-sm ms-2" onclick="deleteNote(<?php echo $n['id']; ?>)"><i class="fas fa-trash"></i></button>
                             </li>
                             <?php endforeach; ?>
                         </ul>
@@ -157,45 +162,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             <div class="mb-2">
                                 <textarea class="form-control" rows="2" name="note" placeholder="Нова бележка..." required></textarea>
                             </div>
-                            <button class="btn btn-primary btn-sm w-100">Добави</button>
+                            <button class="btn btn-primary btn-sm w-100"><i class="fas fa-plus"></i> Добави</button>
                         </form>
                     </div>
                 </div>
             </div>
             <!-- Дясна колона -->
-            <div class="col-md-9">
-                <div class="row">
-                    <div class="col-md-6">
-                        <!-- Премахвам картата за Информация -->
-                        <!-- <div class="card mb-3">
-                            <div class="card-body">
-                                <h5 class="card-title">Информация</h5>
-                            </div>
-                        </div> -->
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card mb-3 shadow-sm">
-                            <div class="card-body">
-                                <h5 class="card-title"><i class="fas fa-cash-register"></i> Каси</h5>
-                                <?php if ($cashboxes): ?>
-                                <table class="table table-sm mt-3">
-                                    <thead>
-                                        <tr><th>Име</th><th>Салдо</th></tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($cashboxes as $cb): ?>
-                                        <tr>
-                                            <td><i class="fas fa-wallet me-1"></i> <?php echo htmlspecialchars($cb['name']); ?></td>
-                                            <td class="text-end text-primary fw-bold"><?php echo number_format($cb['balance'], 2); ?> лв.</td>
-                                        </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                                <?php else: ?>
-                                <div class="text-muted">Няма каси за тази сграда.</div>
-                                <?php endif; ?>
-                            </div>
+            <div class="col-md-8 col-lg-9">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <h4 class="card-title mb-4"><i class="fas fa-cash-register"></i> Каси</h4>
+                        <?php if ($cashboxes): ?>
+                        <div class="table-responsive">
+                            <table class="table table-striped table-bordered table-sm align-middle">
+                                <thead class="table-dark">
+                                    <tr><th>Име</th><th>Салдо</th></tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($cashboxes as $cb): ?>
+                                    <tr>
+                                        <td><i class="fas fa-wallet me-1"></i> <?php echo htmlspecialchars($cb['name']); ?></td>
+                                        <td class="text-end text-primary fw-bold"><?php echo number_format($cb['balance'], 2); ?> лв.</td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
                         </div>
+                        <?php else: ?>
+                        <div class="text-muted">Няма каси за тази сграда.</div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
