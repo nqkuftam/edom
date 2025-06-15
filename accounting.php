@@ -941,9 +941,11 @@ Array.from(document.querySelectorAll('.pay-apartment-btn')).forEach(function(btn
     document.getElementById('pay_apartment_modal_info').value = apartment.building_name + ' - ' + apartment.number;
     // Зареждане на задълженията
     var debts = unpaidFees.filter(fee => fee.apartment_id == aid);
+    console.log('DEBUG unpaidFees for apartment', aid, debts); // Дебъг
     var list = document.getElementById('apartmentDebtsList');
     list.innerHTML = '';
     debts.forEach(function(fee, i) {
+      console.log('DEBUG fee for checkbox:', fee); // Дебъг
       var div = document.createElement('div');
       div.className = 'form-check mb-2';
       div.innerHTML = `
