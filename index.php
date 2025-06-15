@@ -17,7 +17,6 @@ if (!isset($_SESSION['user_id']) || !isLoggedIn()) {
     header('Location: login.php');
     exit();
 }
-require_once 'includes/styles.php';
 
 $error = '';
 $success = '';
@@ -82,7 +81,10 @@ try {
 }
 
 // При обработка на POST заявка с action=add_note, добавям нова бележка в базата
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_note') {
+if (
+    $_SERVER['REQUEST_METHOD'] === 'POST' &&
+    isset($_POST['action']) && $_POST['action'] === 'add_note'
+) {
     $note = trim($_POST['note'] ?? '');
     if ($note && $currentBuilding) {
         $user_id = $_SESSION['user_id'] ?? null;
@@ -94,7 +96,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // При обработка на POST заявка с action=delete_note, изтривам бележка от базата
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete_note') {
+if (
+    $_SERVER['REQUEST_METHOD'] === 'POST' &&
+    isset($_POST['action']) && $_POST['action'] === 'delete_note'
+) {
     $note_id = (int)($_POST['note_id'] ?? 0);
     if ($note_id > 0) {
         $stmt = $pdo->prepare("DELETE FROM building_notes WHERE id = ?");
@@ -103,6 +108,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         exit();
     }
 }
+
+require_once 'includes/styles.php';
 ?>
 <!DOCTYPE html>
 <html lang="bg">
@@ -134,7 +141,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 <div class="card shadow-sm mb-4">
                     <div class="card-body">
                         <h5 class="card-title mb-3"><i class="fas fa-cog"></i> Управление</h5>
-                        <p><strong>Силвия Великова</strong><br><a href="mailto:es.silistra@gmail.com">es.silistra@gmail.com</a></p>
                         <hr>
                         <ul class="list-unstyled mb-0">
                             <li class="mb-2"><i class="fas fa-building"></i> <a href="apartments.php">Имоти</a></li>
