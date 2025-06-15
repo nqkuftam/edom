@@ -14,7 +14,8 @@ require_once 'includes/navigation.php';
 require_once 'includes/styles.php';
 
 // Проверка дали потребителят е логнат
-if (!isLoggedIn()) {
+if (!isset($_SESSION['user_id']) || !isLoggedIn()) {
+    $_SESSION['error'] = 'Моля, влезте в системата за да продължите.';
     header('Location: login.php');
     exit();
 }

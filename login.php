@@ -15,6 +15,12 @@ if (isLoggedIn()) {
 
 $error = '';
 
+// Проверка за съобщения за грешка от сесията
+if (isset($_SESSION['error'])) {
+    $error = $_SESSION['error'];
+    unset($_SESSION['error']);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';

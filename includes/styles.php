@@ -279,23 +279,70 @@
     }
 
     @media (max-width: 768px) {
+        .container {
+            padding: 8px;
+            max-width: 100vw;
+        }
         .header-content {
             flex-direction: column;
-            gap: 1rem;
-            text-align: center;
+            align-items: flex-start;
+            gap: 0.5rem;
         }
-
+        .header h1 {
+            font-size: 1.2rem;
+        }
         .nav-links {
-            flex-wrap: wrap;
-            justify-content: center;
+            flex-direction: column;
+            gap: 0.5rem;
+            width: 100%;
         }
-
+        .card {
+            padding: 0.7rem;
+            margin-bottom: 0.7rem;
+        }
         .grid {
             grid-template-columns: 1fr;
+            gap: 0.7rem;
         }
+        .form-group {
+            margin-bottom: 0.7rem;
+        }
+        .form-label {
+            font-size: 1rem;
+        }
+        .btn, .btn-primary, .btn-secondary, .btn-danger, .btn-warning {
+            width: 100%;
+            font-size: 1.1rem;
+            padding: 0.7rem 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        table {
+            font-size: 0.95rem;
+            min-width: 600px;
+        }
+        .modal-content {
+            padding: 0.5rem;
+        }
+    }
 
-        .stats-grid {
-            grid-template-columns: 1fr;
+    @media (max-width: 480px) {
+        .header h1 {
+            font-size: 1rem;
+        }
+        .form-label {
+            font-size: 0.95rem;
+        }
+        .btn, .btn-primary, .btn-secondary, .btn-danger, .btn-warning {
+            font-size: 1rem;
+            padding: 0.6rem 0.7rem;
+        }
+        table {
+            font-size: 0.9rem;
+            min-width: 400px;
         }
     }
 
