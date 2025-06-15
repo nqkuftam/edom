@@ -100,7 +100,7 @@ try {
 
     // Вземане на всички неплатени такси с информация за апартамент и сграда
     $stmt = $pdo->query("
-        SELECT fa.id as id, f.*, fa.apartment_id, a.number AS apartment_number, b.name AS building_name, fa.amount
+        SELECT fa.id as fa_id, f.*, fa.apartment_id, a.number AS apartment_number, b.name AS building_name, fa.amount
         FROM fees f 
         JOIN fee_apartments fa ON fa.fee_id = f.id
         JOIN apartments a ON fa.apartment_id = a.id
@@ -783,7 +783,7 @@ function updateUnpaidFees() {
         const apartmentFees = unpaidFees.filter(fee => fee.apartment_id == apartmentId);
         apartmentFees.forEach(fee => {
             const option = document.createElement('option');
-            option.value = fee.id;
+            option.value = fee.fa_id;
             option.textContent = `${fee.amount} лв.`;
             feeSelect.appendChild(option);
         });
@@ -898,7 +898,7 @@ function toggleChargeRow(checkbox) {
 
 function showPayFeeModal(fee) {
   document.getElementById('pay_apartment_id').value = fee.apartment_id;
-  document.getElementById('pay_fee_id').value = fee.id;
+  document.getElementById('pay_fee_id').value = fee.fa_id;
   document.getElementById('pay_apartment_info').value = (fee.building_name ? fee.building_name + ' - ' : '') + 'Апартамент ' + fee.apartment_number;
   document.getElementById('pay_amount').value = fee.amount;
   // Избери първия метод по подразбиране
@@ -949,7 +949,7 @@ Array.from(document.querySelectorAll('.pay-apartment-btn')).forEach(function(btn
       var div = document.createElement('div');
       div.className = 'form-check mb-2';
       div.innerHTML = `
-        <input class="form-check-input debt-checkbox" type="checkbox" name="selected_fees[]" value="${fee.id}" data-amount="${fee.amount}" checked>
+        <input class="form-check-input debt-checkbox" type="checkbox" name="selected_fees[]" value="${fee.fa_id}" data-amount="${fee.amount}" checked>
         <label class="form-check-label">${fee.description} - ${fee.amount} лв.</label>
       `;
       list.appendChild(div);
