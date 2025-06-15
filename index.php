@@ -67,6 +67,14 @@ try {
         $notes = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
+    // Вземане на касите за текущата сграда
+    $cashboxes = [];
+    if ($currentBuilding) {
+        $stmt = $pdo->prepare("SELECT * FROM cashboxes WHERE building_id = ?");
+        $stmt->execute([$currentBuilding['id']]);
+        $cashboxes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    
 } catch (PDOException $e) {
     $error = handlePDOError($e);
 } catch (Exception $e) {
@@ -104,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     </div>
 
     <div class="container-fluid">
+        <?php echo renderBuildingSelector(); ?>
         <div class="row">
             <!-- Лява колона -->
             <div class="col-md-3">
@@ -113,16 +122,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <p><strong>Силвия Великова</strong><br><a href="mailto:es.silistra@gmail.com">es.silistra@gmail.com</a></p>
                         <hr>
                         <ul class="list-unstyled mb-3">
-                            <li><i class="fas fa-building"></i> <a href="apartments.php">Имотии</a> <span class="badge bg-secondary">24</span></li>
+                            <li><i class="fas fa-building"></i> <a href="apartments.php">Имоти</a></li>
                             <li><i class="fas fa-euro-sign"></i> <a href="accounting.php">Счетоводство</a></li>
                         </ul>
-                        <div class="d-flex justify-content-between mb-3">
-                            <button class="btn btn-outline-success btn-sm"><i class="fas fa-home"></i></button>
-                            <button class="btn btn-outline-info btn-sm"><i class="fas fa-users"></i></button>
-                            <button class="btn btn-outline-primary btn-sm"><i class="fas fa-euro-sign"></i></button>
-                            <button class="btn btn-outline-danger btn-sm"><i class="fas fa-bell"></i></button>
-                        </div>
-                        <button class="btn btn-success w-100">Сигнализирай</button>
                     </div>
                 </div>
                 <!-- Бележки -->
@@ -152,58 +154,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <div class="col-md-9">
                 <div class="row">
                     <div class="col-md-6">
-                        <div class="card mb-3">
-                            <div class="card-body">
-                                <h5 class="card-title">Съобщения</h5>
-                                <p class="text-muted">Няма нови съобщения</p>
-                            </div>
-                        </div>
-                        <div class="card mb-3">
+                        <!-- Премахвам картата за Информация -->
+                        <!-- <div class="card mb-3">
                             <div class="card-body">
                                 <h5 class="card-title">Информация</h5>
                             </div>
-                        </div>
+                        </div> -->
                     </div>
                     <div class="col-md-6">
                         <div class="card mb-3">
                             <div class="card-body">
                                 <h5 class="card-title">Каси</h5>
-                                <div class="row">
-                                    <div class="col-6 text-center">
-                                        <div class="h4">0.00 ЛВ</div>
-                                        <div class="text-muted">САЛДО</div>
-                                    </div>
-                                    <div class="col-6 text-center">
-                                        <div class="h4">264.16 ЛВ</div>
-                                        <div class="text-muted">НА РАЗПОЛОЖЕНИЕ</div>
-                                    </div>
-                                </div>
+                                <?php if ($cashboxes): ?>
                                 <table class="table table-sm mt-3">
                                     <thead>
-                                        <tr><th>Текущи задължения</th><th>Просрочени</th><th>Салдо</th></tr>
+                                        <tr><th>Име</th><th>Салдо</th></tr>
                                     </thead>
                                     <tbody>
-                                        <tr><td>ОК</td><td>393.33 лв.</td><td>-223.55 лв.</td></tr>
-                                        <tr><td>ФРО</td><td>105.25 лв.</td><td>388.75 лв.</td></tr>
+                                        <?php foreach ($cashboxes as $cb): ?>
+                                        <tr>
+                                            <td><i class="fas fa-wallet me-1"></i> <?php echo htmlspecialchars($cb['name']); ?></td>
+                                            <td class="text-end text-primary fw-bold"><?php echo number_format($cb['balance'], 2); ?> лв.</td>
+                                        </tr>
+                                        <?php endforeach; ?>
                                     </tbody>
                                 </table>
-                            </div>
-                        </div>
-                        <div class="card mb-3">
-                            <div class="card-body">
-                                <h5 class="card-title">Документи</h5>
-                                <form>
-                                    <div class="mb-2">
-                                        <input type="file" class="form-control" multiple>
-                                    </div>
-                                    <div class="mb-2">
-                                        <select class="form-select">
-                                            <option>Директория</option>
-                                        </select>
-                                    </div>
-                                    <button class="btn btn-primary w-100">Прикачи</button>
-                                </form>
-                                <div class="mt-2 text-muted">Няма прикачени документи</div>
+                                <?php else: ?>
+                                <div class="text-muted">Няма каси за тази сграда.</div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
