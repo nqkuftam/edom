@@ -1,47 +1,29 @@
 <?php
-session_start();
-require_once 'includes/db.php';
-require_once 'includes/auth.php';
+require_once 'config.php';
 
-// Проверка дали потребителят е логнат
-if (!isLoggedIn()) {
-    header('HTTP/1.1 401 Unauthorized');
-    exit('Unauthorized');
-}
+header('Content-Type: application/json');
 
-// Добавяне на CORS хедъри
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET');
-header('Content-Type: application/json; charset=utf-8');
-
-// Проверка за apartment_id параметър
 if (!isset($_GET['apartment_id'])) {
-    header('HTTP/1.1 400 Bad Request');
-    exit(json_encode(['error' => 'Missing apartment_id parameter']));
+    http_response_code(400);
+    echo json_encode(['error' => 'Не е посочен апартамент']);
+    exit;
 }
 
 $apartment_id = (int)$_GET['apartment_id'];
 
-// Проверка дали апартаментът съществува
-$stmt = $pdo->prepare("SELECT id FROM apartments WHERE id = ?");
-$stmt->execute([$apartment_id]);
-if (!$stmt->fetch()) {
-    header('HTTP/1.1 404 Not Found');
-    exit(json_encode(['error' => 'Apartment not found']));
-}
-
-// Вземане на неплатените такси за избрания апартамент
-$stmt = $pdo->prepare("
-    SELECT 
-        f.*,
-        FORMAT(f.amount, 2) as formatted_amount
-    FROM fees f 
-    WHERE f.apartment_id = ? 
-    AND f.id NOT IN (SELECT fee_id FROM payments)
-    ORDER BY f.created_at DESC
-");
-$stmt->execute([$apartment_id]);
-$fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Връщане на резултата като JSON
-echo json_encode($fees, JSON_UNESCAPED_UNICODE); 
+try {
+    $stmt = $pdo->prepare("
+        SELECT fa.id, f.description, fa.amount, f.type
+        FROM fee_apartments fa
+        JOIN fees f ON fa.fee_id = f.id
+        WHERE fa.apartment_id = ? AND fa.is_paid = 0
+        ORDER BY f.created_at DESC
+    ");
+    $stmt->execute([$apartment_id]);
+    $fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    echo json_encode($fees);
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Възникна грешка при зареждането на таксите']);
+} 

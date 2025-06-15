@@ -71,21 +71,31 @@ if (!isset($_SESSION['user_id']) || !isLoggedIn()) {
 
 // --- ДОБАВЯМ ЛОГИКАТА ЗА ПЛАЩАНИЯ ---
 try {
-    // Вземане на апартаментите според избраната сграда
-    $query = "
-        SELECT a.*, b.name as building_name 
+    // Създаване на таблица за баланси на апартаменти, ако не съществува
+    $pdo->exec("CREATE TABLE IF NOT EXISTS apartment_balances (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        apartment_id INT NOT NULL,
+        balance DECIMAL(10,2) DEFAULT 0.00,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (apartment_id) REFERENCES apartments(id) ON DELETE CASCADE
+    )");
+
+    // Взимане на всички апартаменти с техните баланси
+    $apartments = $pdo->query("
+        SELECT a.*, b.balance 
         FROM apartments a 
-        JOIN buildings b ON a.building_id = b.id 
-    ";
-    $params = [];
-    if ($currentBuilding) {
-        $query .= " WHERE a.building_id = ?";
-        $params[] = $currentBuilding['id'];
+        LEFT JOIN apartment_balances b ON a.id = b.apartment_id
+        ORDER BY a.building_name, a.number
+    ")->fetchAll();
+
+    // Ако някой апартамент няма запис в балансите, създаваме такъв
+    foreach ($apartments as $apartment) {
+        if (!isset($apartment['balance'])) {
+            $stmt = $pdo->prepare("INSERT INTO apartment_balances (apartment_id, balance) VALUES (?, 0)");
+            $stmt->execute([$apartment['id']]);
+            $apartment['balance'] = 0;
+        }
     }
-    $query .= " ORDER BY b.name, a.number";
-    $stmt = $pdo->prepare($query);
-    $stmt->execute($params);
-    $apartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Вземане на всички неплатени такси с информация за апартамент и сграда
     $stmt = $pdo->query("
@@ -129,6 +139,12 @@ try {
         $stmt = $pdo->query("SELECT * FROM fees ORDER BY created_at DESC");
         $fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    // Вземи всички каси в асоциативен масив за лесен достъп по id
+    $cashboxNames = [];
+    foreach ($cashboxes as $cb) {
+        $cashboxNames[$cb['id']] = $cb['name'];
+    }
 } catch (PDOException $e) {
     $error = handlePDOError($e);
 } catch (Exception $e) {
@@ -145,18 +161,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $distribution_method = $_POST['distribution_method'] ?? '';
         $description = $_POST['description'] ?? '';
         $amounts = $_POST['amounts'] ?? [];
+        $charge = $_POST['charge'] ?? [];
         if (!empty($type) && $amount > 0 && !empty($distribution_method) && !empty($amounts) && $cashbox_id > 0) {
             $pdo->beginTransaction();
             try {
-                // 1. Създаване на обща такса с cashbox_id
                 $stmt = $pdo->prepare("INSERT INTO fees (cashbox_id, type, amount, description, distribution_method, months_count) VALUES (?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$cashbox_id, $type, $amount, $description, $distribution_method, $months_count]);
                 $fee_id = $pdo->lastInsertId();
-                // 2. Създаване на разпределение по апартаменти
                 $stmt2 = $pdo->prepare("INSERT INTO fee_apartments (fee_id, apartment_id, amount) VALUES (?, ?, ?)");
                 $inserted = false;
                 foreach ($amounts as $apartment_id => $a) {
-                    if (is_numeric($a) && $a !== '') {
+                    if (isset($charge[$apartment_id]) && is_numeric($a) && $a !== '') {
                         $stmt2->execute([$fee_id, $apartment_id, $a]);
                         $inserted = true;
                     }
@@ -174,6 +189,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
             $error = showError('Моля, попълнете всички задължителни полета.');
+        }
+    }
+
+    if (isset($_POST['action']) && $_POST['action'] === 'delete_fee') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id > 0) {
+            $stmt = $pdo->prepare("DELETE FROM fees WHERE id = ?");
+            $stmt->execute([$id]);
+            header('Location: accounting.php');
+            exit();
+        }
+    }
+
+    // Обработка на плащане
+    if (isset($_POST['action']) && $_POST['action'] === 'add_payment') {
+        $apartment_id = (int)$_POST['apartment_id'];
+        $payment_method = $_POST['payment_method'] ?? 'cash';
+        $use_balance = isset($_POST['use_balance']) && $_POST['use_balance'] === '1';
+        $selected_fees = $_POST['selected_fees'] ?? [];
+        
+        if (empty($selected_fees)) {
+            $error = showError('Моля, изберете поне една такса за плащане.');
+        } else {
+            try {
+                $pdo->beginTransaction();
+                
+                // Вземане на текущия баланс на апартамента
+                $stmt = $pdo->prepare("SELECT balance FROM apartment_balances WHERE apartment_id = ?");
+                $stmt->execute([$apartment_id]);
+                $current_balance = $stmt->fetchColumn();
+                
+                // Изчисляване на общата сума за плащане
+                $stmt = $pdo->prepare("SELECT SUM(amount) FROM fee_apartments WHERE id IN (" . implode(',', array_fill(0, count($selected_fees), '?')) . ")");
+                $stmt->execute($selected_fees);
+                $total_amount = $stmt->fetchColumn();
+                
+                if ($use_balance && $total_amount > $current_balance) {
+                    throw new Exception('Недостатъчен баланс за плащане.');
+                }
+                
+                // Създаване на запис за плащането
+                $stmt = $pdo->prepare("INSERT INTO payments (apartment_id, amount, payment_method, payment_date) VALUES (?, ?, ?, NOW())");
+                $stmt->execute([$apartment_id, $total_amount, $payment_method]);
+                $payment_id = $pdo->lastInsertId();
+                
+                // Маркиране на таксите като платени
+                $stmt = $pdo->prepare("UPDATE fee_apartments SET is_paid = 1, payment_id = ? WHERE id IN (" . implode(',', array_fill(0, count($selected_fees), '?')) . ")");
+                $stmt->execute(array_merge([$payment_id], $selected_fees));
+                
+                // Ако се плаща от баланс, намаляваме го
+                if ($use_balance) {
+                    $new_balance = $current_balance - $total_amount;
+                    $stmt = $pdo->prepare("UPDATE apartment_balances SET balance = ? WHERE apartment_id = ?");
+                    $stmt->execute([$new_balance, $apartment_id]);
+                }
+                
+                $pdo->commit();
+                $success = showSuccess('Плащането е регистрирано успешно.');
+                header('Location: accounting.php');
+                exit();
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                $error = showError('Възникна грешка при плащането: ' . $e->getMessage());
+            }
         }
     }
 }
@@ -286,6 +365,7 @@ require_once 'includes/styles.php';
                         <th>Метод</th>
                         <th>Обща сума</th>
                         <th>Описание</th>
+                        <th>Каса</th>
                         <th>Действия</th>
                       </tr>
                     </thead>
@@ -305,9 +385,9 @@ require_once 'includes/styles.php';
                         </td>
                         <td><?php echo number_format($fee['amount'], 2); ?></td>
                         <td><?php echo htmlspecialchars($fee['description']); ?></td>
+                        <td><?php echo isset($cashboxNames[$fee['cashbox_id']]) ? htmlspecialchars($cashboxNames[$fee['cashbox_id']]) : '<span class=\'text-danger\'>Няма</span>'; ?></td>
                         <td>
-                          <button class="btn btn-warning btn-sm" onclick='showEditFeeModal(<?php echo htmlspecialchars(json_encode($fee)); ?>)'><i class="fas fa-edit"></i></button>
-                          <button class="btn btn-danger btn-sm" onclick="deleteFee(<?php echo $fee['id']; ?>)"><i class="fas fa-trash"></i></button>
+                          <button class="btn btn-danger btn-sm" onclick="deleteFee(<?php echo $fee['id']; ?>)"><i class="fas fa-trash"></i> Изтрий</button>
                         </td>
                       </tr>
                       <?php endif; ?>
@@ -370,6 +450,7 @@ require_once 'includes/styles.php';
                           <table class="table table-bordered table-sm" id="distribution_table">
                             <thead>
                               <tr>
+                                <th>Таксувай</th>
                                 <th>Апартамент</th>
                                 <th>Сума (лв.)</th>
                               </tr>
@@ -377,6 +458,9 @@ require_once 'includes/styles.php';
                             <tbody>
                               <?php foreach ($apartments as $apartment): ?>
                               <tr>
+                                <td class="text-center">
+                                  <input type="checkbox" class="charge-checkbox" name="charge[<?php echo $apartment['id']; ?>]" value="1" checked onchange="toggleChargeRow(this)">
+                                </td>
                                 <td><?php echo htmlspecialchars($apartment['building_name'] . ' - ' . $apartment['number']); ?></td>
                                 <td><input type="number" class="form-control amount-input" name="amounts[<?php echo $apartment['id']; ?>]" step="0.01" min="0" value="0"></td>
                               </tr>
@@ -593,6 +677,15 @@ function distributeAmounts() {
             row.querySelector('.amount-input').value = val.toFixed(2);
         });
     }
+}
+function toggleChargeRow(checkbox) {
+  var amountInput = checkbox.closest('tr').querySelector('.amount-input');
+  if (!checkbox.checked) {
+    amountInput.value = '';
+    amountInput.disabled = true;
+  } else {
+    amountInput.disabled = false;
+  }
 }
 </script>
 </body>
