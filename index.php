@@ -156,7 +156,6 @@ require_once 'includes/styles.php';
                             <li class="list-group-item small d-flex align-items-center justify-content-between">
                                 <span>
                                     <span class="text-muted"><?php echo date('Y-m-d', strtotime($n['created_at'])); ?></span>
-                                    <?php if ($n['username']): ?> - <b><?php echo htmlspecialchars($n['username']); ?></b><?php endif; ?>
                                     - <?php echo htmlspecialchars($n['note']); ?>
                                 </span>
                                 <button class="btn btn-outline-danger btn-sm ms-2" onclick="deleteNote(<?php echo $n['id']; ?>)"><i class="fas fa-trash"></i></button>

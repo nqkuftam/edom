@@ -37,11 +37,17 @@ function renderBuildingSelector() {
     if (empty($buildings)) {
         return '<div class="alert alert-warning">Няма налични сгради</div>';
     }
-    
+
+    // Ако няма избрана сграда, избери първата и я сетни в сесията
+    if (!$currentBuilding && count($buildings) > 0) {
+        setCurrentBuilding($buildings[0]['id']);
+        $currentBuilding = getCurrentBuilding();
+    }
+
     $html = '<div class="building-selector mb-4">';
     $html .= '<form method="POST" action="set_building.php" class="d-flex align-items-center">';
     $html .= '<label for="building_id" class="me-2">Изберете сграда:</label>';
-    $html .= '<select name="building_id" id="building_id" class="form-select me-2" style="width: auto;">';
+    $html .= '<select name="building_id" id="building_id" class="form-select me-2" style="width: auto;" onchange="this.form.submit()">';
     
     foreach ($buildings as $building) {
         $selected = ($currentBuilding && $currentBuilding['id'] == $building['id']) ? 'selected' : '';
@@ -55,7 +61,7 @@ function renderBuildingSelector() {
     }
     
     $html .= '</select>';
-    $html .= '<button type="submit" class="btn btn-primary">Избери</button>';
+    // Премахнат бутон 'Избери'
     $html .= '</form>';
     $html .= '</div>';
     
