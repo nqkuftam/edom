@@ -667,37 +667,74 @@ function distributeAmounts() {
     var total = parseFloat(document.getElementById('amount').value) || 0;
     var method = document.getElementById('distribution_method').value;
     var rows = document.querySelectorAll('#distribution_table tbody tr');
-    if (method === 'equal') {
-        var per = total / rows.length;
+    var checkedRows = Array.from(rows).filter(function(row) {
+        return row.querySelector('.charge-checkbox').checked;
+    });
+    var n = checkedRows.length;
+    if (n === 0) {
         rows.forEach(function(row) {
-            row.querySelector('.amount-input').value = per.toFixed(2);
+            row.querySelector('.amount-input').value = '';
+        });
+        return;
+    }
+    if (method === 'equal') {
+        var per = (total / n);
+        checkedRows.forEach(function(row, i) {
+            var val = (i === n - 1) ? (total - per * (n - 1)) : per;
+            row.querySelector('.amount-input').value = val.toFixed(2);
         });
     } else if (method === 'by_people') {
-        var people = <?php echo json_encode(array_column($apartments, 'people_count', 'id')); ?>;
         var totalPeople = 0;
-        rows.forEach(function(row, i) {
-            var id = Object.keys(people)[i];
-            totalPeople += parseInt(people[id]) || 1;
+        checkedRows.forEach(function(row) {
+            totalPeople += parseInt(row.getAttribute('data-people')) || 1;
         });
-        rows.forEach(function(row, i) {
-            var id = Object.keys(people)[i];
-            var val = totalPeople ? total * (parseInt(people[id]) || 1) / totalPeople : 0;
+        checkedRows.forEach(function(row, i) {
+            var people = parseInt(row.getAttribute('data-people')) || 1;
+            var val = totalPeople ? (total * people / totalPeople) : 0;
+            if (i === n - 1) {
+                // Корекция за последния ред
+                var sum = 0;
+                checkedRows.forEach(function(r, j) {
+                    if (j !== n - 1) sum += parseFloat(r.querySelector('.amount-input').value) || 0;
+                });
+                val = total - sum;
+            }
             row.querySelector('.amount-input').value = val.toFixed(2);
         });
     } else if (method === 'by_area') {
-        var areas = <?php echo json_encode(array_column($apartments, 'area', 'id')); ?>;
         var totalArea = 0;
-        rows.forEach(function(row, i) {
-            var id = Object.keys(areas)[i];
-            totalArea += parseFloat(areas[id]) || 0;
+        checkedRows.forEach(function(row) {
+            totalArea += parseFloat(row.getAttribute('data-area')) || 1;
         });
-        rows.forEach(function(row, i) {
-            var id = Object.keys(areas)[i];
-            var val = totalArea ? total * (parseFloat(areas[id]) || 0) / totalArea : 0;
+        checkedRows.forEach(function(row, i) {
+            var area = parseFloat(row.getAttribute('data-area')) || 1;
+            var val = totalArea ? (total * area / totalArea) : 0;
+            if (i === n - 1) {
+                // Корекция за последния ред
+                var sum = 0;
+                checkedRows.forEach(function(r, j) {
+                    if (j !== n - 1) sum += parseFloat(r.querySelector('.amount-input').value) || 0;
+                });
+                val = total - sum;
+            }
             row.querySelector('.amount-input').value = val.toFixed(2);
         });
     }
+    // Всички останали (без тикче) -> празно и disabled
+    rows.forEach(function(row) {
+        if (!row.querySelector('.charge-checkbox').checked) {
+            row.querySelector('.amount-input').value = '';
+        }
+    });
 }
+
+// При промяна на чекбокс или метод автоматично преизчислявай
+Array.from(document.querySelectorAll('.charge-checkbox')).forEach(function(cb) {
+    cb.addEventListener('change', distributeAmounts);
+});
+document.getElementById('distribution_method').addEventListener('change', distributeAmounts);
+document.getElementById('amount').addEventListener('input', distributeAmounts);
+
 function toggleChargeRow(checkbox) {
   var amountInput = checkbox.closest('tr').querySelector('.amount-input');
   if (!checkbox.checked) {
