@@ -1,6 +1,8 @@
 <?php
-session_start();
-require_once 'db_connection.php';
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require_once('db.php');
 
 function getBuildings() {
     global $conn;
