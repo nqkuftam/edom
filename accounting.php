@@ -80,13 +80,14 @@ try {
         FOREIGN KEY (apartment_id) REFERENCES apartments(id) ON DELETE CASCADE
     )");
 
-    // Взимане на всички апартаменти с техните баланси
+    // Взимане на всички апартаменти с техните баланси и името на сградата
     $apartments = $pdo->query("
-        SELECT a.*, b.balance 
-        FROM apartments a 
-        LEFT JOIN apartment_balances b ON a.id = b.apartment_id
-        ORDER BY a.building_name, a.number
-    ")->fetchAll();
+        SELECT a.*, b.name AS building_name, ab.balance
+        FROM apartments a
+        JOIN buildings b ON a.building_id = b.id
+        LEFT JOIN apartment_balances ab ON a.id = ab.apartment_id
+        ORDER BY b.name, a.number
+    ")->fetchAll(PDO::FETCH_ASSOC);
 
     // Ако някой апартамент няма запис в балансите, създаваме такъв
     foreach ($apartments as $apartment) {
@@ -110,33 +111,52 @@ try {
     ");
     $unpaid_fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Вземане на плащанията според избраната сграда
-    $query = "
-        SELECT p.*, a.number as apartment_number, b.name as building_name, f.created_at 
-        FROM payments p 
-        JOIN apartments a ON p.apartment_id = a.id 
-        JOIN buildings b ON a.building_id = b.id 
-        JOIN fees f ON p.fee_id = f.id 
-    ";
-    $params = [];
-    if ($currentBuilding) {
-        $query .= " WHERE a.building_id = ?";
-        $params[] = $currentBuilding['id'];
+    // --- ЗАРЕЖДАНЕ НА ПЛАЩАНИЯТА ЗА ТЕКУЩАТА СГРАДА ---
+    if (isset($currentBuilding) && $currentBuilding) {
+        $stmt = $pdo->prepare("
+            SELECT p.*, a.number AS apartment_number, b.name AS building_name
+            FROM payments p
+            JOIN apartments a ON p.apartment_id = a.id
+            JOIN buildings b ON a.building_id = b.id
+            WHERE a.building_id = ?
+            ORDER BY p.payment_date DESC
+        ");
+        $stmt->execute([$currentBuilding['id']]);
+        $payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $stmt = $pdo->query("
+            SELECT p.*, a.number AS apartment_number, b.name AS building_name
+            FROM payments p
+            JOIN apartments a ON p.apartment_id = a.id
+            JOIN buildings b ON a.building_id = b.id
+            ORDER BY p.payment_date DESC
+        ");
+        $payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    $query .= " ORDER BY p.created_at DESC, b.name, a.number";
-    $stmt = $pdo->prepare($query);
-    $stmt->execute($params);
-    $payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $payment_methods = ['В брой', 'Банков превод', 'Карта', 'Друг'];
 
     // --- ЗАРЕЖДАНЕ НА ТАКСИТЕ ЗА ТЕКУЩАТА СГРАДА ---
-    if ($currentBuilding) {
-        $stmt = $pdo->prepare("SELECT f.* FROM fees f JOIN fee_apartments fa ON fa.fee_id = f.id JOIN apartments a ON fa.apartment_id = a.id WHERE a.building_id = ? GROUP BY f.id ORDER BY f.created_at DESC");
+    if (isset($currentBuilding) && $currentBuilding) {
+        $stmt = $pdo->prepare("
+            SELECT f.*, c.name AS cashbox_name
+            FROM fees f
+            LEFT JOIN cashboxes c ON f.cashbox_id = c.id
+            JOIN fee_apartments fa ON fa.fee_id = f.id
+            JOIN apartments a ON fa.apartment_id = a.id
+            WHERE a.building_id = ?
+            GROUP BY f.id
+            ORDER BY f.created_at DESC
+        ");
         $stmt->execute([$currentBuilding['id']]);
         $fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
-        $stmt = $pdo->query("SELECT * FROM fees ORDER BY created_at DESC");
+        $stmt = $pdo->query("
+            SELECT f.*, c.name AS cashbox_name
+            FROM fees f
+            LEFT JOIN cashboxes c ON f.cashbox_id = c.id
+            ORDER BY f.created_at DESC
+        ");
         $fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
