@@ -6,7 +6,7 @@ error_reporting(E_ALL);
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-require_once 'includes/db_connection.php';
+require_once 'includes/db.php';
 require_once 'includes/building_selector.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['building_id'])) {

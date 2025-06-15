@@ -7,13 +7,8 @@ require_once('db.php');
 function getBuildings() {
     global $pdo;
     $sql = "SELECT id, name, address FROM buildings ORDER BY name";
-    $result = $pdo->query($sql);
-    $buildings = [];
-    if ($result->num_rows > 0) {
-        while($row = $result->fetch_assoc()) {
-            $buildings[] = $row;
-        }
-    }
+    $stmt = $pdo->query($sql);
+    $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
     return $buildings;
 }
 
@@ -22,11 +17,10 @@ function getCurrentBuilding() {
     if (isset($_SESSION['current_building_id'])) {
         $sql = "SELECT id, name, address FROM buildings WHERE id = ?";
         $stmt = $pdo->prepare($sql);
-        $stmt->bind_param("i", $_SESSION['current_building_id']);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result->num_rows > 0) {
-            return $result->fetch_assoc();
+        $stmt->execute([$_SESSION['current_building_id']]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($result) {
+            return $result;
         }
     }
     return null;

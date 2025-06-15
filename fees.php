@@ -167,26 +167,38 @@ try {
             <i class="fas fa-plus"></i> Добави нова такса
         </button>
         
-        <div class="grid">
-            <?php foreach ($fees as $fee): ?>
-            <div class="card">
-                <h3><i class="fas fa-file-invoice-dollar"></i> Такса за <?php echo htmlspecialchars($fee['month']); ?> <?php echo $fee['year']; ?></h3>
-                <p><strong><i class="fas fa-building"></i> Сграда:</strong> <?php echo htmlspecialchars($fee['building_name']); ?></p>
-                <p><strong><i class="fas fa-home"></i> Апартамент:</strong> <?php echo htmlspecialchars($fee['apartment_number']); ?></p>
-                <p><strong><i class="fas fa-money-bill-wave"></i> Сума:</strong> <?php echo number_format($fee['amount'], 2); ?> лв.</p>
-                <?php if ($fee['description']): ?>
-                <p><strong><i class="fas fa-info-circle"></i> Описание:</strong> <?php echo htmlspecialchars($fee['description']); ?></p>
-                <?php endif; ?>
-                <div class="payment-actions">
-                    <button class="btn btn-warning" onclick="showEditModal(<?php echo htmlspecialchars(json_encode($fee)); ?>)">
-                        <i class="fas fa-edit"></i> Редактирай
-                    </button>
-                    <button class="btn btn-danger" onclick="deleteFee(<?php echo $fee['id']; ?>)">
-                        <i class="fas fa-trash"></i> Изтрий
-                    </button>
-                </div>
+        <!-- Таблица с всички такси -->
+        <div class="card p-3 mb-4">
+            <h5><i class="fas fa-file-invoice-dollar"></i> Всички такси</h5>
+            <div class="table-responsive">
+                <table class="table table-striped table-bordered table-sm">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Апартамент</th>
+                            <th>Месец</th>
+                            <th>Година</th>
+                            <th>Сума (лв.)</th>
+                            <th>Описание</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($fees as $fee): ?>
+                        <tr>
+                            <td><?php echo htmlspecialchars($fee['building_name'] . ' - ' . $fee['apartment_number']); ?></td>
+                            <td><?php echo htmlspecialchars($fee['month']); ?></td>
+                            <td><?php echo htmlspecialchars($fee['year']); ?></td>
+                            <td><?php echo number_format($fee['amount'], 2); ?></td>
+                            <td><?php echo htmlspecialchars($fee['description']); ?></td>
+                            <td>
+                                <button class="btn btn-warning btn-sm" onclick='showEditModal(<?php echo htmlspecialchars(json_encode($fee)); ?>)'><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteFee(<?php echo $fee['id']; ?>)"><i class="fas fa-trash"></i></button>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
-            <?php endforeach; ?>
         </div>
     </div>
 

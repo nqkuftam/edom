@@ -190,17 +190,7 @@ try {
                 <div class="modal-body">
                     <form method="POST">
                         <input type="hidden" name="action" value="add_apartment">
-                        <div class="form-group">
-                            <label for="building_id" class="form-label">Сграда:</label>
-                            <select class="form-control" id="building_id" name="building_id" required>
-                                <option value="">Изберете сграда</option>
-                                <?php foreach ($buildings as $building): ?>
-                                <option value="<?php echo $building['id']; ?>">
-                                    <?php echo htmlspecialchars($building['name']); ?>
-                                </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
+                        <input type="hidden" name="building_id" value="<?php echo $currentBuilding ? $currentBuilding['id'] : ''; ?>">
                         <div class="form-group">
                             <label for="number" class="form-label">Номер:</label>
                             <input type="text" class="form-control" id="number" name="number" required>
@@ -247,16 +237,7 @@ try {
                     <form method="POST">
                         <input type="hidden" name="action" value="edit_apartment">
                         <input type="hidden" name="id" id="edit_id">
-                        <div class="form-group">
-                            <label for="edit_building_id" class="form-label">Сграда:</label>
-                            <select class="form-control" id="edit_building_id" name="building_id" required>
-                                <?php foreach ($buildings as $building): ?>
-                                <option value="<?php echo $building['id']; ?>">
-                                    <?php echo htmlspecialchars($building['name']); ?>
-                                </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
+                        <input type="hidden" name="building_id" id="edit_building_id" value="<?php echo $currentBuilding ? $currentBuilding['id'] : ''; ?>">
                         <div class="form-group">
                             <label for="edit_number" class="form-label">Номер:</label>
                             <input type="text" class="form-control" id="edit_number" name="number" required>

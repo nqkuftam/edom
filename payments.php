@@ -188,7 +188,62 @@ try {
         <button class="btn btn-primary mb-3" onclick="showAddModal()">
             <i class="fas fa-plus"></i> Добави ново плащане
         </button>
-        
+
+        <!-- Филтър по апартамент за таблицата с такси -->
+        <form method="GET" class="row g-3 align-items-end mb-3">
+            <div class="col-md-4">
+                <label for="filter_apartment" class="form-label"><i class="fas fa-home"></i> Филтрирай по апартамент:</label>
+                <select name="filter_apartment" id="filter_apartment" class="form-select" onchange="this.form.submit()">
+                    <option value="">Всички апартаменти</option>
+                    <?php foreach ($apartments as $apartment): ?>
+                        <option value="<?php echo $apartment['id']; ?>" <?php if (isset($_GET['filter_apartment']) && $_GET['filter_apartment'] == $apartment['id']) echo 'selected'; ?>>
+                            <?php echo htmlspecialchars($apartment['building_name'] . ' - Апартамент ' . $apartment['number']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </form>
+
+        <!-- Таблица с всички такси -->
+        <div class="card p-3 mb-4">
+            <h5><i class="fas fa-file-invoice-dollar"></i> Всички такси</h5>
+            <div class="table-responsive">
+                <table class="table table-striped table-bordered table-sm">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Апартамент</th>
+                            <th>Месец</th>
+                            <th>Година</th>
+                            <th>Сума (лв.)</th>
+                            <th>Описание</th>
+                            <th>Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        // Филтриране по апартамент, ако е избран
+                        $filtered_fees = $unpaid_fees;
+                        if (isset($_GET['filter_apartment']) && $_GET['filter_apartment']) {
+                            $filtered_fees = array_filter($unpaid_fees, function($fee) {
+                                return $fee['apartment_id'] == $_GET['filter_apartment'];
+                            });
+                        }
+                        foreach ($filtered_fees as $fee):
+                        ?>
+                        <tr>
+                            <td><?php echo htmlspecialchars($fee['building_name'] . ' - ' . $fee['apartment_number']); ?></td>
+                            <td><?php echo htmlspecialchars($fee['month']); ?></td>
+                            <td><?php echo htmlspecialchars($fee['year']); ?></td>
+                            <td><?php echo number_format($fee['amount'], 2); ?></td>
+                            <td><?php echo htmlspecialchars($fee['description']); ?></td>
+                            <td><span class="badge bg-danger">Неплатена</span></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="grid">
             <?php foreach ($payments as $payment): ?>
             <div class="card">

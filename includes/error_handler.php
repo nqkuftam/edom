@@ -24,27 +24,7 @@ function showInfo($message) {
 
 // Функция за обработка на PDO грешки
 function handlePDOError($e) {
-    $errorMessage = 'Грешка в базата данни: ';
-    
-    // Добавяме специфично съобщение според кода на грешката
-    switch ($e->getCode()) {
-        case '23000': // Нарушение на уникален ключ
-            $errorMessage .= 'Вече съществува запис с тези данни.';
-            break;
-        case '42S02': // Липсваща таблица
-            $errorMessage .= 'Липсваща таблица в базата данни.';
-            break;
-        case '42S22': // Липсваща колона
-            $errorMessage .= 'Липсваща колона в таблицата.';
-            break;
-        case 'HY000': // Обща грешка
-            $errorMessage .= 'Възникна проблем при работа с базата данни.';
-            break;
-        default:
-            $errorMessage .= $e->getMessage();
-    }
-    
-    return showError($errorMessage);
+    return showError('Грешка в базата данни: ' . $e->getMessage());
 }
 
 // Функция за обработка на общи грешки
