@@ -298,4 +298,9 @@
             grid-template-columns: 1fr;
         }
     }
+
+    /* Стил за лявата колона с бележки и управление */
+    .col-md-4.col-lg-3 {
+        padding-right: 30px;
+    }
 </style> 
