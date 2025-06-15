@@ -6,19 +6,18 @@ error_reporting(E_ALL);
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-require_once 'includes/db.php';
-require_once 'includes/auth.php';
-require_once 'includes/building_selector.php';
-require_once 'includes/error_handler.php';
-require_once 'includes/navigation.php';
-require_once 'includes/styles.php';
-
 // Проверка дали потребителят е логнат
 if (!isset($_SESSION['user_id']) || !isLoggedIn()) {
     $_SESSION['error'] = 'Моля, влезте в системата за да продължите.';
     header('Location: login.php');
     exit();
 }
+require_once 'includes/db.php';
+require_once 'includes/auth.php';
+require_once 'includes/building_selector.php';
+require_once 'includes/error_handler.php';
+require_once 'includes/navigation.php';
+require_once 'includes/styles.php';
 
 $error = '';
 $success = '';
