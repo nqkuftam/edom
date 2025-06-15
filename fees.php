@@ -179,6 +179,9 @@ try {
                             <th>Година</th>
                             <th>Сума (лв.)</th>
                             <th>Описание</th>
+                            <th>Тип</th>
+                            <th>Метод</th>
+                            <th>Обща сума</th>
                             <th>Действия</th>
                         </tr>
                     </thead>
@@ -190,6 +193,18 @@ try {
                             <td><?php echo htmlspecialchars($fee['year']); ?></td>
                             <td><?php echo number_format($fee['amount'], 2); ?></td>
                             <td><?php echo htmlspecialchars($fee['description']); ?></td>
+                            <td><?php echo $fee['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?></td>
+                            <td>
+                                <?php
+                                switch($fee['distribution_method']) {
+                                    case 'equal': echo 'Равномерно'; break;
+                                    case 'by_people': echo 'По хора'; break;
+                                    case 'by_area': echo 'По площ'; break;
+                                    case 'by_elevator': echo 'По асансьор'; break;
+                                }
+                                ?>
+                            </td>
+                            <td><?php echo number_format($fee['total_amount'], 2); ?></td>
                             <td>
                                 <button class="btn btn-warning btn-sm" onclick='showEditModal(<?php echo htmlspecialchars(json_encode($fee)); ?>)'><i class="fas fa-edit"></i></button>
                                 <button class="btn btn-danger btn-sm" onclick="deleteFee(<?php echo $fee['id']; ?>)"><i class="fas fa-trash"></i></button>
@@ -244,6 +259,30 @@ try {
                         <div class="form-group">
                             <label for="description" class="form-label">Описание:</label>
                             <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="type" class="form-label">Тип такса:</label>
+                            <select class="form-control" id="type" name="type" required onchange="toggleMonthsCount()">
+                                <option value="monthly">Месечна</option>
+                                <option value="temporary">Временна</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="months_count_group" style="display:none;">
+                            <label for="months_count" class="form-label">Брой месеци (за временна такса):</label>
+                            <input type="number" class="form-control" id="months_count" name="months_count" min="1" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="distribution_method" class="form-label">Метод на разпределение:</label>
+                            <select class="form-control" id="distribution_method" name="distribution_method" required>
+                                <option value="equal">Равномерно</option>
+                                <option value="by_people">По брой хора</option>
+                                <option value="by_area">По площ (м²)</option>
+                                <option value="by_elevator">По ползвания на асансьор</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="total_amount" class="form-label">Обща сума за разпределение (лв.):</label>
+                            <input type="number" class="form-control" id="total_amount" name="total_amount" step="0.01" min="0" value="0">
                         </div>
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
@@ -338,6 +377,12 @@ try {
                 form.submit();
             }
         }
+
+        function toggleMonthsCount() {
+            var type = document.getElementById('type').value;
+            document.getElementById('months_count_group').style.display = (type === 'temporary') ? 'block' : 'none';
+        }
+        document.getElementById('type').addEventListener('change', toggleMonthsCount);
     </script>
 </body>
 </html>
