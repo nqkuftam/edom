@@ -118,8 +118,14 @@ try {
     $apartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Вземане на всички такси
-    $stmt = $pdo->query("SELECT * FROM fees ORDER BY created_at DESC");
-    $fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if ($currentBuilding) {
+        $stmt = $pdo->prepare("SELECT f.* FROM fees f JOIN fee_apartments fa ON fa.fee_id = f.id JOIN apartments a ON fa.apartment_id = a.id WHERE a.building_id = ? GROUP BY f.id ORDER BY f.created_at DESC");
+        $stmt->execute([$currentBuilding['id']]);
+        $fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $stmt = $pdo->query("SELECT * FROM fees ORDER BY created_at DESC");
+        $fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
     
     // Масив с месеци
     $months = [
