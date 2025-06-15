@@ -135,6 +135,49 @@ try {
     $error = handleError($e);
 }
 
+// В обработката на POST заявката за add_fee:
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['action']) && $_POST['action'] === 'add_fee') {
+        $cashbox_id = (int)($_POST['cashbox_id'] ?? 0);
+        $type = $_POST['type'] ?? '';
+        $months_count = (int)($_POST['months_count'] ?? 1);
+        $amount = (float)($_POST['amount'] ?? 0);
+        $distribution_method = $_POST['distribution_method'] ?? '';
+        $description = $_POST['description'] ?? '';
+        $amounts = $_POST['amounts'] ?? [];
+        if (!empty($type) && $amount > 0 && !empty($distribution_method) && !empty($amounts) && $cashbox_id > 0) {
+            $pdo->beginTransaction();
+            try {
+                // 1. Създаване на обща такса с cashbox_id
+                $stmt = $pdo->prepare("INSERT INTO fees (cashbox_id, type, amount, description, distribution_method, months_count) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$cashbox_id, $type, $amount, $description, $distribution_method, $months_count]);
+                $fee_id = $pdo->lastInsertId();
+                // 2. Създаване на разпределение по апартаменти
+                $stmt2 = $pdo->prepare("INSERT INTO fee_apartments (fee_id, apartment_id, amount) VALUES (?, ?, ?)");
+                $inserted = false;
+                foreach ($amounts as $apartment_id => $a) {
+                    if (is_numeric($a) && $a !== '') {
+                        $stmt2->execute([$fee_id, $apartment_id, $a]);
+                        $inserted = true;
+                    }
+                }
+                if (!$inserted) {
+                    throw new Exception('Няма валидни суми за апартаментите!');
+                }
+                $pdo->commit();
+                $success = showSuccess('Таксата и разпределението са добавени успешно.');
+                header('Location: accounting.php');
+                exit();
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                $error = showError('Възникна грешка при добавянето: ' . $e->getMessage());
+            }
+        } else {
+            $error = showError('Моля, попълнете всички задължителни полета.');
+        }
+    }
+}
+
 require_once 'includes/styles.php';
 ?>
 <!DOCTYPE html>
@@ -228,48 +271,50 @@ require_once 'includes/styles.php';
             </div>
           </div>
           <div class="col-lg-6 col-md-12">
-            <!-- Таблица с всички такси (от fees.php) -->
-            <button class="btn btn-primary mb-3" onclick="showAddFeeModal()">
-              <i class="fas fa-plus"></i> Добави нова такса
-            </button>
-            <div class="card p-3 mb-4">
-              <h5><i class="fas fa-file-invoice-dollar"></i> Всички такси</h5>
-              <div class="table-responsive">
-                <table class="table table-striped table-bordered table-sm">
-                  <thead class="table-dark">
-                    <tr>
-                      <th>Тип</th>
-                      <th>Метод</th>
-                      <th>Обща сума</th>
-                      <th>Описание</th>
-                      <th>Действия</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <?php foreach ($fees as $fee): ?>
-                    <?php if ($fee['type'] === 'monthly' || $fee['type'] === 'temporary'): ?>
-                    <tr>
-                      <td><?php echo $fee['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?></td>
-                      <td>
-                        <?php
-                        switch($fee['distribution_method']) {
-                          case 'equal': echo 'Равномерно'; break;
-                          case 'by_people': echo 'По хора'; break;
-                          case 'by_area': echo 'По площ'; break;
-                        }
-                        ?>
-                      </td>
-                      <td><?php echo number_format($fee['amount'], 2); ?></td>
-                      <td><?php echo htmlspecialchars($fee['description']); ?></td>
-                      <td>
-                        <button class="btn btn-warning btn-sm" onclick='showEditFeeModal(<?php echo htmlspecialchars(json_encode($fee)); ?>)'><i class="fas fa-edit"></i></button>
-                        <button class="btn btn-danger btn-sm" onclick="deleteFee(<?php echo $fee['id']; ?>)"><i class="fas fa-trash"></i></button>
-                      </td>
-                    </tr>
-                    <?php endif; ?>
-                    <?php endforeach; ?>
-                  </tbody>
-                </table>
+            <!-- Таблица с всички такси (като тази за касите) -->
+            <div class="card mb-3 shadow-sm" style="font-size:0.95rem;">
+              <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
+                <span><i class="fas fa-file-invoice-dollar"></i> Такси</span>
+                <button class="btn btn-primary btn-sm" onclick="showAddFeeModal()"><i class="fas fa-plus"></i> Добави нова такса</button>
+              </div>
+              <div class="card-body p-3">
+                <div class="table-responsive">
+                  <table class="table table-bordered table-sm mb-0" style="font-size:0.95rem;">
+                    <thead class="table-dark">
+                      <tr>
+                        <th>Тип</th>
+                        <th>Метод</th>
+                        <th>Обща сума</th>
+                        <th>Описание</th>
+                        <th>Действия</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <?php foreach ($fees as $fee): ?>
+                      <?php if ($fee['type'] === 'monthly' || $fee['type'] === 'temporary'): ?>
+                      <tr>
+                        <td><?php echo $fee['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?></td>
+                        <td>
+                          <?php
+                          switch($fee['distribution_method']) {
+                            case 'equal': echo 'Равномерно'; break;
+                            case 'by_people': echo 'По хора'; break;
+                            case 'by_area': echo 'По площ'; break;
+                          }
+                          ?>
+                        </td>
+                        <td><?php echo number_format($fee['amount'], 2); ?></td>
+                        <td><?php echo htmlspecialchars($fee['description']); ?></td>
+                        <td>
+                          <button class="btn btn-warning btn-sm" onclick='showEditFeeModal(<?php echo htmlspecialchars(json_encode($fee)); ?>)'><i class="fas fa-edit"></i></button>
+                          <button class="btn btn-danger btn-sm" onclick="deleteFee(<?php echo $fee['id']; ?>)"><i class="fas fa-trash"></i></button>
+                        </td>
+                      </tr>
+                      <?php endif; ?>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
             <!-- Модал за добавяне на такса -->
