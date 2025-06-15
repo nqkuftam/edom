@@ -174,25 +174,16 @@ try {
                 <table class="table table-striped table-bordered table-sm">
                     <thead class="table-dark">
                         <tr>
-                            <th>Апартамент</th>
-                            <th>Месец</th>
-                            <th>Година</th>
-                            <th>Сума (лв.)</th>
-                            <th>Описание</th>
                             <th>Тип</th>
                             <th>Метод</th>
                             <th>Обща сума</th>
+                            <th>Описание</th>
                             <th>Действия</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($fees as $fee): ?>
                         <tr>
-                            <td><?php echo htmlspecialchars($fee['building_name'] . ' - ' . $fee['apartment_number']); ?></td>
-                            <td><?php echo htmlspecialchars($fee['month']); ?></td>
-                            <td><?php echo htmlspecialchars($fee['year']); ?></td>
-                            <td><?php echo number_format($fee['amount'], 2); ?></td>
-                            <td><?php echo htmlspecialchars($fee['description']); ?></td>
                             <td><?php echo $fee['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?></td>
                             <td>
                                 <?php
@@ -205,6 +196,7 @@ try {
                                 ?>
                             </td>
                             <td><?php echo number_format($fee['total_amount'], 2); ?></td>
+                            <td><?php echo htmlspecialchars($fee['description']); ?></td>
                             <td>
                                 <button class="btn btn-warning btn-sm" onclick='showEditModal(<?php echo htmlspecialchars(json_encode($fee)); ?>)'><i class="fas fa-edit"></i></button>
                                 <button class="btn btn-danger btn-sm" onclick="deleteFee(<?php echo $fee['id']; ?>)"><i class="fas fa-trash"></i></button>
@@ -215,6 +207,37 @@ try {
                 </table>
             </div>
         </div>
+
+        <!-- Таблица за разпределение по апартаменти за всяка такса -->
+        <?php foreach ($fees as $fee): ?>
+        <div class="card p-3 mb-4">
+            <h6>Разпределение на суми за такса: <?php echo $fee['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?> (<?php echo number_format($fee['total_amount'], 2); ?> лв.)</h6>
+            <div class="table-responsive">
+                <form method="POST">
+                <input type="hidden" name="action" value="update_fee_distribution">
+                <input type="hidden" name="fee_id" value="<?php echo $fee['id']; ?>">
+                <table class="table table-bordered table-sm">
+                    <thead>
+                        <tr>
+                            <th>Апартамент</th>
+                            <th>Сума (лв.)</th>
+                            <th>Запази</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($apartments as $apartment): ?>
+                        <tr>
+                            <td><?php echo htmlspecialchars($apartment['building_name'] . ' - ' . $apartment['number']); ?></td>
+                            <td><input type="number" class="form-control" name="amounts[<?php echo $apartment['id']; ?>]" value="<?php echo isset($fee['distribution'][$apartment['id']]) ? number_format($fee['distribution'][$apartment['id']], 2) : ''; ?>" step="0.01" min="0"></td>
+                            <td><button type="submit" class="btn btn-success btn-sm">Запази</button></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                </form>
+            </div>
+        </div>
+        <?php endforeach; ?>
     </div>
 
     <!-- Модален прозорец за добавяне -->
@@ -228,38 +251,6 @@ try {
                 <div class="modal-body">
                     <form method="POST">
                         <input type="hidden" name="action" value="add_fee">
-                        <div class="form-group">
-                            <label for="apartment_id" class="form-label">Апартамент:</label>
-                            <select class="form-control" id="apartment_id" name="apartment_id" required>
-                                <option value="">Изберете апартамент</option>
-                                <?php foreach ($apartments as $apartment): ?>
-                                <option value="<?php echo $apartment['id']; ?>">
-                                    <?php echo htmlspecialchars($apartment['building_name'] . ' - Апартамент ' . $apartment['number']); ?>
-                                </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="month" class="form-label">Месец:</label>
-                            <select class="form-control" id="month" name="month" required>
-                                <option value="">Изберете месец</option>
-                                <?php foreach ($months as $month): ?>
-                                <option value="<?php echo $month; ?>"><?php echo $month; ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="year" class="form-label">Година:</label>
-                            <input type="number" class="form-control" id="year" name="year" min="2000" max="2100" value="<?php echo date('Y'); ?>" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="amount" class="form-label">Сума (лв.):</label>
-                            <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="description" class="form-label">Описание:</label>
-                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
-                        </div>
                         <div class="form-group">
                             <label for="type" class="form-label">Тип такса:</label>
                             <select class="form-control" id="type" name="type" required onchange="toggleMonthsCount()">
@@ -284,6 +275,10 @@ try {
                             <label for="total_amount" class="form-label">Обща сума за разпределение (лв.):</label>
                             <input type="number" class="form-control" id="total_amount" name="total_amount" step="0.01" min="0" value="0">
                         </div>
+                        <div class="form-group">
+                            <label for="description" class="form-label">Описание:</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        </div>
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
                             <button type="submit" class="btn btn-primary">Добави</button>
@@ -307,30 +302,28 @@ try {
                         <input type="hidden" name="action" value="edit_fee">
                         <input type="hidden" name="id" id="edit_id">
                         <div class="form-group">
-                            <label for="edit_apartment_id" class="form-label">Апартамент:</label>
-                            <select class="form-control" id="edit_apartment_id" name="apartment_id" required>
-                                <?php foreach ($apartments as $apartment): ?>
-                                <option value="<?php echo $apartment['id']; ?>">
-                                    <?php echo htmlspecialchars($apartment['building_name'] . ' - Апартамент ' . $apartment['number']); ?>
-                                </option>
-                                <?php endforeach; ?>
+                            <label for="edit_type" class="form-label">Тип такса:</label>
+                            <select class="form-control" id="edit_type" name="type" required onchange="toggleMonthsCount()">
+                                <option value="monthly">Месечна</option>
+                                <option value="temporary">Временна</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="edit_months_count_group" style="display:none;">
+                            <label for="edit_months_count" class="form-label">Брой месеци (за временна такса):</label>
+                            <input type="number" class="form-control" id="edit_months_count" name="months_count" min="1" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_distribution_method" class="form-label">Метод на разпределение:</label>
+                            <select class="form-control" id="edit_distribution_method" name="distribution_method" required>
+                                <option value="equal">Равномерно</option>
+                                <option value="by_people">По брой хора</option>
+                                <option value="by_area">По площ (м²)</option>
+                                <option value="by_elevator">По ползвания на асансьор</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="edit_month" class="form-label">Месец:</label>
-                            <select class="form-control" id="edit_month" name="month" required>
-                                <?php foreach ($months as $month): ?>
-                                <option value="<?php echo $month; ?>"><?php echo $month; ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit_year" class="form-label">Година:</label>
-                            <input type="number" class="form-control" id="edit_year" name="year" min="2000" max="2100" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit_amount" class="form-label">Сума (лв.):</label>
-                            <input type="number" class="form-control" id="edit_amount" name="amount" step="0.01" min="0" required>
+                            <label for="edit_total_amount" class="form-label">Обща сума за разпределение (лв.):</label>
+                            <input type="number" class="form-control" id="edit_total_amount" name="total_amount" step="0.01" min="0" value="0">
                         </div>
                         <div class="form-group">
                             <label for="edit_description" class="form-label">Описание:</label>
@@ -355,10 +348,10 @@ try {
 
         function showEditModal(fee) {
             document.getElementById('edit_id').value = fee.id;
-            document.getElementById('edit_apartment_id').value = fee.apartment_id;
-            document.getElementById('edit_month').value = fee.month;
-            document.getElementById('edit_year').value = fee.year;
-            document.getElementById('edit_amount').value = fee.amount;
+            document.getElementById('edit_type').value = fee.type;
+            document.getElementById('edit_months_count').value = fee.months_count;
+            document.getElementById('edit_distribution_method').value = fee.distribution_method;
+            document.getElementById('edit_total_amount').value = fee.total_amount;
             document.getElementById('edit_description').value = fee.description;
             
             var modal = new bootstrap.Modal(document.getElementById('editModal'));

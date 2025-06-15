@@ -236,7 +236,7 @@ try {
                             <td><?php echo htmlspecialchars($fee['year']); ?></td>
                             <td><?php echo number_format($fee['amount'], 2); ?></td>
                             <td><?php echo htmlspecialchars($fee['description']); ?></td>
-                            <td><span class="badge bg-danger">Неплатена</span></td>
+                            <td><span class="badge bg-danger">Неплатена</span> <button class="btn btn-success btn-sm pay-fee-btn" data-fee='<?php echo json_encode($fee); ?>'><i class="fas fa-credit-card"></i> Плати</button></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -389,6 +389,53 @@ try {
         </div>
     </div>
 
+    <!-- Модален прозорец за плащане на такса -->
+    <div id="payFeeModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-credit-card"></i> Плащане на такса</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="add_payment">
+                        <input type="hidden" name="apartment_id" id="pay_apartment_id">
+                        <input type="hidden" name="fee_id" id="pay_fee_id">
+                        <div class="mb-3">
+                            <label class="form-label">Апартамент:</label>
+                            <input type="text" class="form-control" id="pay_apartment_info" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Сума (лв.):</label>
+                            <input type="number" class="form-control" id="pay_amount" name="amount" step="0.01" min="0" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Дата на плащане:</label>
+                            <input type="date" class="form-control" name="payment_date" value="<?php echo date('Y-m-d'); ?>" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Метод на плащане:</label>
+                            <select class="form-control" name="payment_method" required>
+                                <?php foreach ($payment_methods as $method): ?>
+                                <option value="<?php echo $method; ?>"><?php echo $method; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Бележка:</label>
+                            <textarea class="form-control" name="notes" rows="2"></textarea>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+                            <button type="submit" class="btn btn-success">Потвърди плащане</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Масив с неплатените такси
@@ -440,6 +487,18 @@ try {
                 form.submit();
             }
         }
+
+        document.querySelectorAll('.pay-fee-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var fee = JSON.parse(this.getAttribute('data-fee'));
+                document.getElementById('pay_apartment_id').value = fee.apartment_id;
+                document.getElementById('pay_fee_id').value = fee.id;
+                document.getElementById('pay_apartment_info').value = (fee.building_name ? fee.building_name + ' - ' : '') + 'Апартамент ' + fee.apartment_number;
+                document.getElementById('pay_amount').value = fee.amount;
+                var modal = new bootstrap.Modal(document.getElementById('payFeeModal'));
+                modal.show();
+            });
+        });
     </script>
 </body>
 </html>
