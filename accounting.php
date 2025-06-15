@@ -177,117 +177,179 @@ require_once 'includes/styles.php';
     </ul>
     <div class="tab-content" id="accountingTabsContent">
       <div class="tab-pane fade show active" id="budget" role="tabpanel">
-        <!-- Таблица с всички такси (от fees.php) -->
-        <button class="btn btn-primary mb-3" onclick="showAddFeeModal()">
-            <i class="fas fa-plus"></i> Добави нова такса
-        </button>
-        <div class="card p-3 mb-4">
-            <h5><i class="fas fa-file-invoice-dollar"></i> Всички такси</h5>
-            <div class="table-responsive">
-                <table class="table table-striped table-bordered table-sm">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Тип</th>
-                            <th>Метод</th>
-                            <th>Обща сума</th>
-                            <th>Описание</th>
-                            <th>Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($fees as $fee): ?>
-                        <?php if ($fee['type'] === 'monthly' || $fee['type'] === 'temporary'): ?>
-                        <tr>
-                            <td><?php echo $fee['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?></td>
-                            <td>
-                                <?php
-                                switch($fee['distribution_method']) {
-                                    case 'equal': echo 'Равномерно'; break;
-                                    case 'by_people': echo 'По хора'; break;
-                                    case 'by_area': echo 'По площ'; break;
-                                }
-                                ?>
-                            </td>
-                            <td><?php echo number_format($fee['amount'], 2); ?></td>
-                            <td><?php echo htmlspecialchars($fee['description']); ?></td>
-                            <td>
-                                <button class="btn btn-warning btn-sm" onclick='showEditFeeModal(<?php echo htmlspecialchars(json_encode($fee)); ?>)'><i class="fas fa-edit"></i></button>
-                                <button class="btn btn-danger btn-sm" onclick="deleteFee(<?php echo $fee['id']; ?>)"><i class="fas fa-trash"></i></button>
-                            </td>
-                        </tr>
-                        <?php endif; ?>
-                        <?php endforeach; ?>
-                    </tbody>
+        <div class="row">
+          <div class="col-lg-6 col-md-12">
+            <!-- Каси -->
+            <div class="card mb-3 shadow-sm" style="font-size:0.95rem;">
+              <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
+                <span><i class="fas fa-cash-register"></i> Каси</span>
+                <button class="btn btn-primary btn-sm" onclick="showAddCashboxModal()"><i class="fas fa-plus"></i> Добави нова каса</button>
+              </div>
+              <div class="card-body p-3">
+                <table class="table table-bordered table-sm mb-0" style="font-size:0.95rem;">
+                  <thead class="table-light"><tr><th>Име</th><th>Баланс</th><th class="text-center">Операции</th></tr></thead>
+                  <tbody>
+                  <?php foreach ($cashboxes as $cb): ?>
+                    <tr>
+                      <td class="fw-bold"><i class="fas fa-wallet me-1"></i> <?php echo htmlspecialchars($cb['name']); ?></td>
+                      <td class="text-end text-primary fw-bold"><?php echo number_format($cb['balance'], 2); ?> лв.</td>
+                      <td class="text-center">
+                        <button class="btn btn-outline-danger btn-sm" onclick="deleteCashbox(<?php echo $cb['id']; ?>)"><i class="fas fa-trash"></i> Изтрий</button>
+                      </td>
+                    </tr>
+                  <?php endforeach; ?>
+                  </tbody>
                 </table>
+              </div>
             </div>
-        </div>
-        <!-- Модал за добавяне на такса -->
-        <div id="addFeeModal" class="modal fade" tabindex="-1">
-            <div class="modal-dialog">
+            <!-- Модал за добавяне на нова каса -->
+            <div id="addCashboxModal" class="modal fade" tabindex="-1">
+              <div class="modal-dialog">
                 <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title"><i class="fas fa-plus"></i> Добави нова такса</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form method="POST">
-                            <input type="hidden" name="action" value="add_fee">
-                            <div class="form-group">
-                                <label for="type" class="form-label">Тип такса:</label>
-                                <select class="form-control" id="type" name="type" required onchange="toggleMonthsCount()">
-                                    <option value="monthly">Месечна</option>
-                                    <option value="temporary">Временна</option>
-                                </select>
-                            </div>
-                            <div class="form-group" id="months_count_group" style="display:none;">
-                                <label for="months_count" class="form-label">Брой месеци (за временна такса):</label>
-                                <input type="number" class="form-control" id="months_count" name="months_count" min="1" value="1">
-                            </div>
-                            <div class="form-group">
-                                <label for="amount" class="form-label">Обща сума за разпределение (лв.):</label>
-                                <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0" value="0" oninput="distributeAmounts()">
-                            </div>
-                            <div class="form-group">
-                                <label for="distribution_method" class="form-label">Метод на разпределение:</label>
-                                <select class="form-control" id="distribution_method" name="distribution_method" required onchange="distributeAmounts()">
-                                    <option value="equal">Равномерно</option>
-                                    <option value="by_people">По брой хора</option>
-                                    <option value="by_area">По площ (м²)</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="description" class="form-label">Описание:</label>
-                                <textarea class="form-control" id="description" name="description" rows="3"></textarea>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Разпределение по апартаменти:</label>
-                                <div class="table-responsive">
-                                    <table class="table table-bordered table-sm" id="distribution_table">
-                                        <thead>
-                                            <tr>
-                                                <th>Апартамент</th>
-                                                <th>Сума (лв.)</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($apartments as $apartment): ?>
-                                            <tr>
-                                                <td><?php echo htmlspecialchars($apartment['building_name'] . ' - ' . $apartment['number']); ?></td>
-                                                <td><input type="number" class="form-control amount-input" name="amounts[<?php echo $apartment['id']; ?>]" step="0.01" min="0" value="0"></td>
-                                            </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            <div class="text-end">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
-                                <button type="submit" class="btn btn-primary">Добави</button>
-                            </div>
-                        </form>
-                    </div>
+                  <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus"></i> Добави нова каса</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                  </div>
+                  <div class="modal-body">
+                    <form method="POST">
+                      <input type="hidden" name="action" value="add_cashbox">
+                      <div class="form-group mb-3">
+                        <label for="cashbox_name" class="form-label">Име на касата:</label>
+                        <input type="text" class="form-control" id="cashbox_name" name="cashbox_name" required>
+                      </div>
+                      <div class="text-end">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+                        <button type="submit" class="btn btn-primary">Добави</button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
+              </div>
             </div>
+          </div>
+          <div class="col-lg-6 col-md-12">
+            <!-- Таблица с всички такси (от fees.php) -->
+            <button class="btn btn-primary mb-3" onclick="showAddFeeModal()">
+              <i class="fas fa-plus"></i> Добави нова такса
+            </button>
+            <div class="card p-3 mb-4">
+              <h5><i class="fas fa-file-invoice-dollar"></i> Всички такси</h5>
+              <div class="table-responsive">
+                <table class="table table-striped table-bordered table-sm">
+                  <thead class="table-dark">
+                    <tr>
+                      <th>Тип</th>
+                      <th>Метод</th>
+                      <th>Обща сума</th>
+                      <th>Описание</th>
+                      <th>Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php foreach ($fees as $fee): ?>
+                    <?php if ($fee['type'] === 'monthly' || $fee['type'] === 'temporary'): ?>
+                    <tr>
+                      <td><?php echo $fee['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?></td>
+                      <td>
+                        <?php
+                        switch($fee['distribution_method']) {
+                          case 'equal': echo 'Равномерно'; break;
+                          case 'by_people': echo 'По хора'; break;
+                          case 'by_area': echo 'По площ'; break;
+                        }
+                        ?>
+                      </td>
+                      <td><?php echo number_format($fee['amount'], 2); ?></td>
+                      <td><?php echo htmlspecialchars($fee['description']); ?></td>
+                      <td>
+                        <button class="btn btn-warning btn-sm" onclick='showEditFeeModal(<?php echo htmlspecialchars(json_encode($fee)); ?>)'><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteFee(<?php echo $fee['id']; ?>)"><i class="fas fa-trash"></i></button>
+                      </td>
+                    </tr>
+                    <?php endif; ?>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <!-- Модал за добавяне на такса -->
+            <div id="addFeeModal" class="modal fade" tabindex="-1">
+              <div class="modal-dialog">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus"></i> Добави нова такса</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                  </div>
+                  <div class="modal-body">
+                    <form method="POST">
+                      <input type="hidden" name="action" value="add_fee">
+                      <div class="form-group mb-2">
+                        <label for="fee_cashbox_id" class="form-label">Каса:</label>
+                        <select class="form-control" id="fee_cashbox_id" name="cashbox_id" required>
+                          <option value="">Изберете каса</option>
+                          <?php foreach ($cashboxes as $cb): ?>
+                            <option value="<?php echo $cb['id']; ?>"><?php echo htmlspecialchars($cb['name']); ?></option>
+                          <?php endforeach; ?>
+                        </select>
+                      </div>
+                      <div class="form-group">
+                        <label for="type" class="form-label">Тип такса:</label>
+                        <select class="form-control" id="type" name="type" required onchange="toggleMonthsCount()">
+                          <option value="monthly">Месечна</option>
+                          <option value="temporary">Временна</option>
+                        </select>
+                      </div>
+                      <div class="form-group" id="months_count_group" style="display:none;">
+                        <label for="months_count" class="form-label">Брой месеци (за временна такса):</label>
+                        <input type="number" class="form-control" id="months_count" name="months_count" min="1" value="1">
+                      </div>
+                      <div class="form-group">
+                        <label for="amount" class="form-label">Обща сума за разпределение (лв.):</label>
+                        <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0" value="0" oninput="distributeAmounts()">
+                      </div>
+                      <div class="form-group">
+                        <label for="distribution_method" class="form-label">Метод на разпределение:</label>
+                        <select class="form-control" id="distribution_method" name="distribution_method" required onchange="distributeAmounts()">
+                          <option value="equal">Равномерно</option>
+                          <option value="by_people">По брой хора</option>
+                          <option value="by_area">По площ (м²)</option>
+                        </select>
+                      </div>
+                      <div class="form-group">
+                        <label for="description" class="form-label">Описание:</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                      </div>
+                      <div class="form-group">
+                        <label class="form-label">Разпределение по апартаменти:</label>
+                        <div class="table-responsive">
+                          <table class="table table-bordered table-sm" id="distribution_table">
+                            <thead>
+                              <tr>
+                                <th>Апартамент</th>
+                                <th>Сума (лв.)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <?php foreach ($apartments as $apartment): ?>
+                              <tr>
+                                <td><?php echo htmlspecialchars($apartment['building_name'] . ' - ' . $apartment['number']); ?></td>
+                                <td><input type="number" class="form-control amount-input" name="amounts[<?php echo $apartment['id']; ?>]" step="0.01" min="0" value="0"></td>
+                              </tr>
+                              <?php endforeach; ?>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                      <div class="text-end">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+                        <button type="submit" class="btn btn-primary">Добави</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="tab-pane fade" id="reports" role="tabpanel">
@@ -395,56 +457,6 @@ require_once 'includes/styles.php';
       <div class="tab-pane fade" id="debts" role="tabpanel">
         <!-- Тук може да се добави съдържание за Задължения -->
       </div>
-    </div>
-</div>
-<div class="row">
-    <div class="col-lg-6 col-md-12">
-        <div class="card mb-3 shadow-sm" style="font-size:0.95rem;">
-            <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
-                <span><i class="fas fa-cash-register"></i> Каси</span>
-                <button class="btn btn-primary btn-sm" onclick="showAddCashboxModal()"><i class="fas fa-plus"></i> Добави нова каса</button>
-            </div>
-            <div class="card-body p-3">
-                <table class="table table-bordered table-sm mb-0" style="font-size:0.95rem;">
-                    <thead class="table-light"><tr><th>Име</th><th>Баланс</th><th class="text-center">Операции</th></tr></thead>
-                    <tbody>
-                    <?php foreach ($cashboxes as $cb): ?>
-                        <tr>
-                            <td class="fw-bold"><i class="fas fa-wallet me-1"></i> <?php echo htmlspecialchars($cb['name']); ?></td>
-                            <td class="text-end text-primary fw-bold"><?php echo number_format($cb['balance'], 2); ?> лв.</td>
-                            <td class="text-center">
-                                <button class="btn btn-outline-danger btn-sm" onclick="deleteCashbox(<?php echo $cb['id']; ?>)"><i class="fas fa-trash"></i> Изтрий</button>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <!-- Модал за добавяне на нова каса -->
-        <div id="addCashboxModal" class="modal fade" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title"><i class="fas fa-plus"></i> Добави нова каса</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form method="POST">
-                            <input type="hidden" name="action" value="add_cashbox">
-                            <div class="form-group mb-3">
-                                <label for="cashbox_name" class="form-label">Име на касата:</label>
-                                <input type="text" class="form-control" id="cashbox_name" name="cashbox_name" required>
-                            </div>
-                            <div class="text-end">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
-                                <button type="submit" class="btn btn-primary">Добави</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
