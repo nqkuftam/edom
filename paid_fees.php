@@ -39,7 +39,7 @@ $filter_date_to = $_GET['filter_date_to'] ?? '';
 
 // Вземане на платените такси
 $query = "
-    SELECT p.*, a.number as apartment_number, b.name as building_name, f.month, f.year, f.description as fee_description
+    SELECT p.*, a.number as apartment_number, b.name as building_name, f.description as fee_description
     FROM payments p
     JOIN apartments a ON p.apartment_id = a.id
     JOIN buildings b ON a.building_id = b.id

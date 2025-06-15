@@ -141,6 +141,24 @@ try {
     // Масив с методи за плащане
     $payment_methods = ['В брой', 'Банков превод', 'Карта', 'Друг'];
     
+    // Вземане на всички такси и разпределенията по апартаменти за текущата сграда
+    $query = "
+        SELECT f.*, fa.apartment_id, fa.amount as apartment_amount, a.number as apartment_number, b.name as building_name
+        FROM fees f
+        JOIN fee_apartments fa ON fa.fee_id = f.id
+        JOIN apartments a ON fa.apartment_id = a.id
+        JOIN buildings b ON a.building_id = b.id
+    ";
+    $params = [];
+    if ($currentBuilding) {
+        $query .= " WHERE a.building_id = ?";
+        $params[] = $currentBuilding['id'];
+    }
+    $query .= " ORDER BY f.created_at DESC, b.name, a.number";
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
+    $fee_distributions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
 } catch (PDOException $e) {
     $error = handlePDOError($e);
 } catch (Exception $e) {
@@ -235,6 +253,37 @@ try {
                             <td><?php echo number_format($fee['amount'], 2); ?></td>
                             <td><?php echo htmlspecialchars($fee['description']); ?></td>
                             <td><span class="badge bg-danger">Неплатена</span> <button class="btn btn-success btn-sm pay-fee-btn" data-fee='<?php echo json_encode($fee); ?>'><i class="fas fa-credit-card"></i> Плати</button></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- След таблицата с всички такси добавям таблица за разпределение по апартаменти -->
+        <div class="card p-3 mb-4">
+            <h5><i class="fas fa-table"></i> Разпределение на такси по апартаменти</h5>
+            <div class="table-responsive">
+                <table class="table table-striped table-bordered table-sm">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Такса (ID)</th>
+                            <th>Тип</th>
+                            <th>Обща сума</th>
+                            <th>Апартамент</th>
+                            <th>Сума за апартамент</th>
+                            <th>Описание</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($fee_distributions as $row): ?>
+                        <tr>
+                            <td><?php echo $row['id']; ?></td>
+                            <td><?php echo $row['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?></td>
+                            <td><?php echo number_format($row['total_amount'], 2); ?></td>
+                            <td><?php echo htmlspecialchars($row['building_name'] . ' - ' . $row['apartment_number']); ?></td>
+                            <td><?php echo number_format($row['apartment_amount'], 2); ?></td>
+                            <td><?php echo htmlspecialchars($row['description']); ?></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -467,7 +516,7 @@ try {
                 apartmentFees.forEach(fee => {
                     const option = document.createElement('option');
                     option.value = fee.id;
-                    option.textContent = `${fee.month} ${fee.year} - ${fee.amount} лв.`;
+                    option.textContent = `${fee.amount} лв.`;
                     feeSelect.appendChild(option);
                 });
             }

@@ -39,49 +39,24 @@ try {
                     $amounts = $_POST['amounts'] ?? [];
                     
                     if (!empty($type) && $total_amount > 0 && !empty($distribution_method) && !empty($amounts)) {
-                        // Започваме транзакция
                         $pdo->beginTransaction();
-                        
                         try {
-                            // Добавяме такса за всеки апартамент
-                            $stmt = $pdo->prepare("INSERT INTO fees (apartment_id, amount, description, type, months_count, distribution_method, total_amount) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                            
+                            // 1. Създаване на обща такса
+                            $stmt = $pdo->prepare("INSERT INTO fees (type, total_amount, description, distribution_method, months_count) VALUES (?, ?, ?, ?, ?)");
+                            $stmt->execute([$type, $total_amount, $description, $distribution_method, $months_count]);
+                            $fee_id = $pdo->lastInsertId();
+                            // 2. Създаване на разпределение по апартаменти
+                            $stmt2 = $pdo->prepare("INSERT INTO fee_apartments (fee_id, apartment_id, amount) VALUES (?, ?, ?)");
                             foreach ($amounts as $apartment_id => $amount) {
                                 if ($amount > 0) {
-                                    // За месечна такса
-                                    if ($type === 'monthly') {
-                                        $stmt->execute([
-                                            $apartment_id,
-                                            $amount,
-                                            $description,
-                                            $type,
-                                            1,
-                                            $distribution_method,
-                                            $total_amount
-                                        ]);
-                                    }
-                                    // За временна такса
-                                    else {
-                                        for ($i = 0; $i < $months_count; $i++) {
-                                            $stmt->execute([
-                                                $apartment_id,
-                                                $amount,
-                                                $description,
-                                                $type,
-                                                $months_count,
-                                                $distribution_method,
-                                                $total_amount
-                                            ]);
-                                        }
-                                    }
+                                    $stmt2->execute([$fee_id, $apartment_id, $amount]);
                                 }
                             }
-                            
                             $pdo->commit();
-                            $success = showSuccess('Таксите са добавени успешно.');
+                            $success = showSuccess('Таксата и разпределението са добавени успешно.');
                         } catch (Exception $e) {
                             $pdo->rollBack();
-                            $error = showError('Възникна грешка при добавянето на таксите: ' . $e->getMessage());
+                            $error = showError('Възникна грешка при добавянето: ' . $e->getMessage());
                         }
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
@@ -224,6 +199,7 @@ try {
                     </thead>
                     <tbody>
                         <?php foreach ($fees as $fee): ?>
+                        <?php if ($fee['type'] === 'monthly' || $fee['type'] === 'temporary'): ?>
                         <tr>
                             <td><?php echo $fee['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?></td>
                             <td>
@@ -232,7 +208,6 @@ try {
                                     case 'equal': echo 'Равномерно'; break;
                                     case 'by_people': echo 'По хора'; break;
                                     case 'by_area': echo 'По площ'; break;
-                                    case 'by_elevator': echo 'По асансьор'; break;
                                 }
                                 ?>
                             </td>
@@ -243,44 +218,12 @@ try {
                                 <button class="btn btn-danger btn-sm" onclick="deleteFee(<?php echo $fee['id']; ?>)"><i class="fas fa-trash"></i></button>
                             </td>
                         </tr>
+                        <?php endif; ?>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
         </div>
-
-        <!-- Таблица за разпределение по апартаменти за всяка такса -->
-        <?php foreach ($fees as $fee): ?>
-        <?php if ($fee['total_amount'] > 0): ?>
-        <div class="card p-3 mb-4">
-            <h6>Разпределение на суми за такса: <?php echo $fee['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?> (<?php echo number_format($fee['total_amount'], 2); ?> лв.)</h6>
-            <div class="table-responsive">
-                <form method="POST">
-                <input type="hidden" name="action" value="update_fee_distribution">
-                <input type="hidden" name="fee_id" value="<?php echo $fee['id']; ?>">
-                <table class="table table-bordered table-sm">
-                    <thead>
-                        <tr>
-                            <th>Апартамент</th>
-                            <th>Сума (лв.)</th>
-                            <th>Запази</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($apartments as $apartment): ?>
-                        <tr>
-                            <td><?php echo htmlspecialchars($apartment['building_name'] . ' - ' . $apartment['number']); ?></td>
-                            <td><input type="number" class="form-control" name="amounts[<?php echo $apartment['id']; ?>]" value="<?php echo isset($fee['distribution'][$apartment['id']]) ? number_format($fee['distribution'][$apartment['id']], 2) : ''; ?>" step="0.01" min="0"></td>
-                            <td><button type="submit" class="btn btn-success btn-sm">Запази</button></td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-                </form>
-            </div>
-        </div>
-        <?php endif; ?>
-        <?php endforeach; ?>
     </div>
 
     <!-- Модален прозорец за добавяне -->
