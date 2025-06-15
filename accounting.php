@@ -224,55 +224,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Обработка на плащане
     if (isset($_POST['action']) && $_POST['action'] === 'add_payment') {
-        $apartment_id = (int)$_POST['apartment_id'];
-        $payment_method = $_POST['payment_method'] ?? 'cash';
-        $use_balance = isset($_POST['use_balance']) && $_POST['use_balance'] === '1';
-        $selected_fees = $_POST['selected_fees'] ?? [];
-        
-        if (empty($selected_fees)) {
-            $error = showError('Моля, изберете поне една такса за плащане.');
-        } else {
-            try {
+        $apartment_id = (int)($_POST['apartment_id'] ?? 0);
+        $fee_id = (int)($_POST['fee_id'] ?? 0);
+        $amount = (float)($_POST['amount'] ?? 0);
+        $payment_date = $_POST['payment_date'] ?? date('Y-m-d');
+        $payment_method = $_POST['payment_method'] ?? '';
+        $notes = $_POST['notes'] ?? '';
+        $add_to_balance = isset($_POST['add_to_balance']) && $_POST['add_to_balance'] == '1';
+        if ($apartment_id > 0 && $fee_id > 0 && $amount > 0) {
+            if ($add_to_balance) {
+                // Добави към баланса и маркирай таксата като платена
                 $pdo->beginTransaction();
-                
-                // Вземане на текущия баланс на апартамента
-                $stmt = $pdo->prepare("SELECT balance FROM apartment_balances WHERE apartment_id = ?");
-                $stmt->execute([$apartment_id]);
-                $current_balance = $stmt->fetchColumn();
-                
-                // Изчисляване на общата сума за плащане
-                $stmt = $pdo->prepare("SELECT SUM(amount) FROM fee_apartments WHERE id IN (" . implode(',', array_fill(0, count($selected_fees), '?')) . ")");
-                $stmt->execute($selected_fees);
-                $total_amount = $stmt->fetchColumn();
-                
-                if ($use_balance && $total_amount > $current_balance) {
-                    throw new Exception('Недостатъчен баланс за плащане.');
+                try {
+                    $stmt = $pdo->prepare("UPDATE apartment_balances SET balance = balance + ? WHERE apartment_id = ?");
+                    $stmt->execute([$amount, $apartment_id]);
+                    $stmt = $pdo->prepare("UPDATE fee_apartments SET is_paid = 1 WHERE fee_id = ? AND apartment_id = ?");
+                    $stmt->execute([$fee_id, $apartment_id]);
+                    $pdo->commit();
+                    $success = showSuccess('Сумата е добавена към баланса на апартамента.');
+                    header('Location: accounting.php?tab=debts');
+                    exit();
+                } catch (Exception $e) {
+                    $pdo->rollBack();
+                    $error = showError('Грешка при добавяне към баланса: ' . $e->getMessage());
                 }
-                
-                // Създаване на запис за плащането
-                $stmt = $pdo->prepare("INSERT INTO payments (apartment_id, amount, payment_method, payment_date) VALUES (?, ?, ?, NOW())");
-                $stmt->execute([$apartment_id, $total_amount, $payment_method]);
-                $payment_id = $pdo->lastInsertId();
-                
-                // Маркиране на таксите като платени
-                $stmt = $pdo->prepare("UPDATE fee_apartments SET is_paid = 1, payment_id = ? WHERE id IN (" . implode(',', array_fill(0, count($selected_fees), '?')) . ")");
-                $stmt->execute(array_merge([$payment_id], $selected_fees));
-                
-                // Ако се плаща от баланс, намаляваме го
-                if ($use_balance) {
-                    $new_balance = $current_balance - $total_amount;
-                    $stmt = $pdo->prepare("UPDATE apartment_balances SET balance = ? WHERE apartment_id = ?");
-                    $stmt->execute([$new_balance, $apartment_id]);
-                }
-                
+            } else {
+                // Стандартно плащане
+                $stmt = $pdo->prepare("INSERT INTO payments (apartment_id, fee_id, amount, payment_date, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$apartment_id, $fee_id, $amount, $payment_date, $payment_method, $notes]);
+                $success = showSuccess('Плащането е добавено успешно.');
+                header('Location: accounting.php?tab=debts');
+                exit();
+            }
+        } else {
+            $error = showError('Моля, попълнете всички задължителни полета.');
+        }
+    }
+
+    // Обработка на добавяне към баланс
+    if (
+        $_SERVER['REQUEST_METHOD'] === 'POST' &&
+        isset($_POST['action']) && $_POST['action'] === 'add_to_balance'
+    ) {
+        $apartment_id = (int)($_POST['apartment_id'] ?? 0);
+        $fee_id = (int)($_POST['fee_id'] ?? 0);
+        $amount = (float)($_POST['amount'] ?? 0);
+        if ($apartment_id > 0 && $fee_id > 0 && $amount > 0) {
+            $pdo->beginTransaction();
+            try {
+                // Добави към баланса
+                $stmt = $pdo->prepare("UPDATE apartment_balances SET balance = balance + ? WHERE apartment_id = ?");
+                $stmt->execute([$amount, $apartment_id]);
+                // Маркирай таксата като платена
+                $stmt = $pdo->prepare("UPDATE fee_apartments SET is_paid = 1 WHERE fee_id = ? AND apartment_id = ?");
+                $stmt->execute([$fee_id, $apartment_id]);
                 $pdo->commit();
-                $success = showSuccess('Плащането е регистрирано успешно.');
-                header('Location: accounting.php');
+                $success = showSuccess('Сумата е добавена към баланса на апартамента.');
+                header('Location: accounting.php?tab=debts');
                 exit();
             } catch (Exception $e) {
                 $pdo->rollBack();
-                $error = showError('Възникна грешка при плащането: ' . $e->getMessage());
+                $error = showError('Грешка при добавяне към баланса: ' . $e->getMessage());
             }
+        } else {
+            $error = showError('Невалидни данни за добавяне към баланса.');
         }
     }
 }
@@ -590,6 +605,14 @@ require_once 'includes/styles.php';
                                 <label for="notes" class="form-label">Бележки:</label>
                                 <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
                             </div>
+                            <div class="form-group mb-2">
+                              <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="add_to_balance_checkbox" name="add_to_balance" value="1">
+                                <label class="form-check-label" for="add_to_balance_checkbox">
+                                  Добави към баланс вместо плащане
+                                </label>
+                              </div>
+                            </div>
                             <div class="text-end">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
                                 <button type="submit" class="btn btn-primary">Добави</button>
@@ -604,7 +627,68 @@ require_once 'includes/styles.php';
         <!-- Тук може да се добави съдържание за Транзакции -->
       </div>
       <div class="tab-pane fade" id="debts" role="tabpanel">
-        <!-- Тук може да се добави съдържание за Задължения -->
+        <div class="card mb-3 shadow-sm" style="font-size:0.95rem;">
+          <div class="card-header bg-danger text-white"><i class="fas fa-exclamation-circle"></i> Задължения (неплатени такси)</div>
+          <div class="card-body p-3">
+            <div class="table-responsive">
+              <table class="table table-bordered table-sm mb-0">
+                <thead class="table-dark">
+                  <tr>
+                    <th>Апартамент</th>
+                    <th>Сума (лв.)</th>
+                    <th>Описание</th>
+                    <th>Действия</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($unpaid_fees as $fee): ?>
+                  <tr>
+                    <td><?php echo htmlspecialchars($fee['building_name'] . ' - ' . $fee['apartment_number']); ?></td>
+                    <td><?php echo number_format($fee['amount'], 2); ?></td>
+                    <td><?php echo htmlspecialchars($fee['description']); ?></td>
+                    <td>
+                      <button class="btn btn-success btn-sm" onclick="showAddToBalanceModal(<?php echo $fee['apartment_id']; ?>, <?php echo $fee['id']; ?>, <?php echo $fee['amount']; ?>, '<?php echo htmlspecialchars($fee['building_name'] . ' - ' . $fee['apartment_number']); ?>')">
+                        <i class="fas fa-plus-circle"></i> Добави към баланс
+                      </button>
+                    </td>
+                  </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <!-- Модал за добавяне към баланс -->
+        <div id="addToBalanceModal" class="modal fade" tabindex="-1">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-plus-circle"></i> Добави към баланс</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <form method="POST">
+                  <input type="hidden" name="action" value="add_to_balance">
+                  <input type="hidden" name="apartment_id" id="add_balance_apartment_id">
+                  <input type="hidden" name="fee_id" id="add_balance_fee_id">
+                  <input type="hidden" name="amount" id="add_balance_amount">
+                  <div class="mb-3">
+                    <label class="form-label">Апартамент:</label>
+                    <input type="text" class="form-control" id="add_balance_apartment_info" readonly>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Сума за добавяне:</label>
+                    <input type="number" class="form-control" id="add_balance_amount_view" readonly>
+                  </div>
+                  <div class="text-end">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+                    <button type="submit" class="btn btn-success">Добави към баланс</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 </div>
@@ -743,6 +827,16 @@ function toggleChargeRow(checkbox) {
   } else {
     amountInput.disabled = false;
   }
+}
+
+function showAddToBalanceModal(apartmentId, feeId, amount, apartmentInfo) {
+  document.getElementById('add_balance_apartment_id').value = apartmentId;
+  document.getElementById('add_balance_fee_id').value = feeId;
+  document.getElementById('add_balance_amount').value = amount;
+  document.getElementById('add_balance_apartment_info').value = apartmentInfo;
+  document.getElementById('add_balance_amount_view').value = amount.toFixed(2);
+  var modal = new bootstrap.Modal(document.getElementById('addToBalanceModal'));
+  modal.show();
 }
 </script>
 </body>
