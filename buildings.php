@@ -130,6 +130,10 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <label for="total_apartments" class="form-label">Общ брой апартаменти:</label>
                             <input type="number" class="form-control" id="total_apartments" name="total_apartments" min="1" required>
                         </div>
+                        <div class="form-group">
+                            <label for="generate_day" class="form-label">Ден за генериране на такси (1-28):</label>
+                            <input type="number" class="form-control" id="generate_day" name="generate_day" min="1" max="28" value="1" required>
+                        </div>
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
                             <button type="submit" class="btn btn-primary">Добави</button>
@@ -166,6 +170,10 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <div class="form-group">
                             <label for="edit_total_apartments" class="form-label">Общ брой апартаменти:</label>
                             <input type="number" class="form-control" id="edit_total_apartments" name="total_apartments" min="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="generate_day" class="form-label">Ден за генериране на такси (1-28):</label>
+                            <input type="number" class="form-control" id="generate_day" name="generate_day" min="1" max="28" value="1" required>
                         </div>
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>

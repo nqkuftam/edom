@@ -136,6 +136,43 @@ try {
         'Юли', 'Август', 'Септември', 'Октомври', 'Ноември', 'Декември'
     ];
     
+    // --- АВТОМАТИЧНО ГЕНЕРИРАНЕ НА ТАКСИ ---
+    if (
+        $currentBuilding &&
+        isset($currentBuilding['generate_day']) &&
+        (int)$currentBuilding['generate_day'] === (int)date('j')
+    ) {
+        // Проверка дали вече има генерирана такса за този месец (за да не се дублира)
+        $monthKey = date('Y-m');
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM fees WHERE type = 'monthly' AND description LIKE ? AND created_at >= ?");
+        $stmt->execute(['%Автоматично генерирана%', $monthKey.'-01']);
+        $alreadyGenerated = $stmt->fetchColumn();
+        if (!$alreadyGenerated) {
+            // Вземи всички апартаменти в сградата
+            $stmt = $pdo->prepare("SELECT * FROM apartments WHERE building_id = ?");
+            $stmt->execute([$currentBuilding['id']]);
+            $apartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // Вземи всички месечни такси за тази сграда
+            $stmt = $pdo->prepare("SELECT * FROM fees WHERE type = 'monthly' AND description NOT LIKE '%Автоматично генерирана%' AND distribution_method IS NOT NULL");
+            $stmt->execute();
+            $monthly_fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($monthly_fees as $fee) {
+                // Създай нова такса за този месец
+                $stmt = $pdo->prepare("INSERT INTO fees (type, total_amount, description, distribution_method, months_count) VALUES (?, ?, ?, ?, ?)");
+                $desc = ($fee['description'] ? $fee['description'].' ' : '').'(Автоматично генерирана '.date('m.Y').')';
+                $stmt->execute(['monthly', $fee['total_amount'], $desc, $fee['distribution_method'], 1]);
+                $fee_id = $pdo->lastInsertId();
+                // Разпредели по апартаменти
+                $stmt2 = $pdo->prepare("INSERT INTO fee_apartments (fee_id, apartment_id, amount) VALUES (?, ?, ?)");
+                // ... тук можеш да добавиш логика за разпределение според метода ...
+                $per = $fee['total_amount'] / count($apartments);
+                foreach ($apartments as $apartment) {
+                    $stmt2->execute([$fee_id, $apartment['id'], $per]);
+                }
+            }
+        }
+    }
+    
 } catch (PDOException $e) {
     $error = handlePDOError($e);
 } catch (Exception $e) {
