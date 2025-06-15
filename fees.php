@@ -210,6 +210,7 @@ try {
 
         <!-- Таблица за разпределение по апартаменти за всяка такса -->
         <?php foreach ($fees as $fee): ?>
+        <?php if ($fee['total_amount'] > 0): ?>
         <div class="card p-3 mb-4">
             <h6>Разпределение на суми за такса: <?php echo $fee['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?> (<?php echo number_format($fee['total_amount'], 2); ?> лв.)</h6>
             <div class="table-responsive">
@@ -237,6 +238,7 @@ try {
                 </form>
             </div>
         </div>
+        <?php endif; ?>
         <?php endforeach; ?>
     </div>
 

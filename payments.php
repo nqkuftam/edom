@@ -185,6 +185,8 @@ try {
             <?php echo $success; ?>
         <?php endif; ?>
         
+        <a href="paid_fees.php" class="btn btn-info mb-3"><i class="fas fa-list"></i> Виж платените такси</a>
+
         <button class="btn btn-primary mb-3" onclick="showAddModal()">
             <i class="fas fa-plus"></i> Добави ново плащане
         </button>
