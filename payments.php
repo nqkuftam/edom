@@ -96,8 +96,15 @@ try {
     $stmt->execute($params);
     $apartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Вземане на всички такси (примерно като неплатени такси)
-    $stmt = $pdo->query("SELECT * FROM fees ORDER BY created_at DESC");
+    // Вземане на всички неплатени такси с информация за апартамент и сграда
+    $stmt = $pdo->query("
+        SELECT f.*, fa.apartment_id, a.number AS apartment_number, b.name AS building_name
+        FROM fees f
+        JOIN fee_apartments fa ON fa.fee_id = f.id
+        JOIN apartments a ON fa.apartment_id = a.id
+        JOIN buildings b ON a.building_id = b.id
+        ORDER BY f.created_at DESC
+    ");
     $unpaid_fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Вземане на плащанията според избраната сграда
