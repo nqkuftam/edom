@@ -31,16 +31,68 @@ try {
         if (isset($_POST['action'])) {
             switch ($_POST['action']) {
                 case 'add_fee':
-                    $apartment_id = (int)($_POST['apartment_id'] ?? 0);
-                    $month = $_POST['month'] ?? '';
-                    $year = (int)($_POST['year'] ?? 0);
-                    $amount = (float)($_POST['amount'] ?? 0);
+                    $type = $_POST['type'] ?? '';
+                    $months_count = (int)($_POST['months_count'] ?? 1);
+                    $total_amount = (float)($_POST['total_amount'] ?? 0);
+                    $distribution_method = $_POST['distribution_method'] ?? '';
                     $description = $_POST['description'] ?? '';
+                    $amounts = $_POST['amounts'] ?? [];
                     
-                    if ($apartment_id > 0 && !empty($month) && $year > 0 && $amount > 0) {
-                        $stmt = $pdo->prepare("INSERT INTO fees (apartment_id, month, year, amount, description) VALUES (?, ?, ?, ?, ?)");
-                        $stmt->execute([$apartment_id, $month, $year, $amount, $description]);
-                        $success = showSuccess('Таксата е добавена успешно.');
+                    if (!empty($type) && $total_amount > 0 && !empty($distribution_method) && !empty($amounts)) {
+                        // Започваме транзакция
+                        $pdo->beginTransaction();
+                        
+                        try {
+                            // Добавяме такса за всеки апартамент
+                            $stmt = $pdo->prepare("INSERT INTO fees (apartment_id, month, year, amount, description, type, months_count, distribution_method, total_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            
+                            $current_month = date('n') - 1; // 0-11
+                            $current_year = date('Y');
+                            
+                            foreach ($amounts as $apartment_id => $amount) {
+                                if ($amount > 0) {
+                                    // За месечна такса
+                                    if ($type === 'monthly') {
+                                        $stmt->execute([
+                                            $apartment_id,
+                                            $months[$current_month],
+                                            $current_year,
+                                            $amount,
+                                            $description,
+                                            $type,
+                                            1,
+                                            $distribution_method,
+                                            $total_amount
+                                        ]);
+                                    }
+                                    // За временна такса
+                                    else {
+                                        for ($i = 0; $i < $months_count; $i++) {
+                                            $month_index = ($current_month + $i) % 12;
+                                            $year = $current_year + floor(($current_month + $i) / 12);
+                                            
+                                            $stmt->execute([
+                                                $apartment_id,
+                                                $months[$month_index],
+                                                $year,
+                                                $amount,
+                                                $description,
+                                                $type,
+                                                $months_count,
+                                                $distribution_method,
+                                                $total_amount
+                                            ]);
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            $pdo->commit();
+                            $success = showSuccess('Таксите са добавени успешно.');
+                        } catch (Exception $e) {
+                            $pdo->rollBack();
+                            $error = showError('Възникна грешка при добавянето на таксите: ' . $e->getMessage());
+                        }
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
                     }
@@ -274,7 +326,6 @@ try {
                                 <option value="equal">Равномерно</option>
                                 <option value="by_people">По брой хора</option>
                                 <option value="by_area">По площ (м²)</option>
-                                <option value="by_elevator">По ползвания на асансьор</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -341,7 +392,6 @@ try {
                                 <option value="equal">Равномерно</option>
                                 <option value="by_people">По брой хора</option>
                                 <option value="by_area">По площ (м²)</option>
-                                <option value="by_elevator">По ползвания на асансьор</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -433,18 +483,6 @@ try {
                 rows.forEach(function(row, i) {
                     var id = Object.keys(areas)[i];
                     var val = totalArea ? total * (parseFloat(areas[id]) || 0) / totalArea : 0;
-                    row.querySelector('.amount-input').value = val.toFixed(2);
-                });
-            } else if (method === 'by_elevator') {
-                var uses = <?php echo json_encode(array_column($apartments, 'elevator_uses', 'id')); ?>;
-                var totalUses = 0;
-                rows.forEach(function(row, i) {
-                    var id = Object.keys(uses)[i];
-                    totalUses += parseInt(uses[id]) || 0;
-                });
-                rows.forEach(function(row, i) {
-                    var id = Object.keys(uses)[i];
-                    var val = totalUses ? total * (parseInt(uses[id]) || 0) / totalUses : 0;
                     row.querySelector('.amount-input').value = val.toFixed(2);
                 });
             }

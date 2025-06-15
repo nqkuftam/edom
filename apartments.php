@@ -35,13 +35,14 @@ try {
                     $number = $_POST['number'] ?? '';
                     $floor = (int)($_POST['floor'] ?? 0);
                     $area = (float)($_POST['area'] ?? 0);
+                    $people_count = (int)($_POST['people_count'] ?? 1);
                     $owner_name = $_POST['owner_name'] ?? '';
                     $owner_phone = $_POST['owner_phone'] ?? '';
                     $owner_email = $_POST['owner_email'] ?? '';
                     
                     if ($building_id > 0 && !empty($number) && $floor >= 0 && $area > 0) {
-                        $stmt = $pdo->prepare("INSERT INTO apartments (building_id, number, floor, area, owner_name, owner_phone, owner_email) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$building_id, $number, $floor, $area, $owner_name, $owner_phone, $owner_email]);
+                        $stmt = $pdo->prepare("INSERT INTO apartments (building_id, number, floor, area, people_count, owner_name, owner_phone, owner_email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$building_id, $number, $floor, $area, $people_count, $owner_name, $owner_phone, $owner_email]);
                         $success = showSuccess('Апартаментът е добавен успешно.');
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
@@ -54,13 +55,14 @@ try {
                     $number = $_POST['number'] ?? '';
                     $floor = (int)($_POST['floor'] ?? 0);
                     $area = (float)($_POST['area'] ?? 0);
+                    $people_count = (int)($_POST['people_count'] ?? 1);
                     $owner_name = $_POST['owner_name'] ?? '';
                     $owner_phone = $_POST['owner_phone'] ?? '';
                     $owner_email = $_POST['owner_email'] ?? '';
                     
                     if ($id > 0 && $building_id > 0 && !empty($number) && $floor >= 0 && $area > 0) {
-                        $stmt = $pdo->prepare("UPDATE apartments SET building_id = ?, number = ?, floor = ?, area = ?, owner_name = ?, owner_phone = ?, owner_email = ? WHERE id = ?");
-                        $stmt->execute([$building_id, $number, $floor, $area, $owner_name, $owner_phone, $owner_email, $id]);
+                        $stmt = $pdo->prepare("UPDATE apartments SET building_id = ?, number = ?, floor = ?, area = ?, people_count = ?, owner_name = ?, owner_phone = ?, owner_email = ? WHERE id = ?");
+                        $stmt->execute([$building_id, $number, $floor, $area, $people_count, $owner_name, $owner_phone, $owner_email, $id]);
                         $success = showSuccess('Апартаментът е редактиран успешно.');
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
@@ -204,6 +206,10 @@ try {
                             <input type="number" class="form-control" id="area" name="area" step="0.01" min="0" required>
                         </div>
                         <div class="form-group">
+                            <label for="people_count" class="form-label">Брой хора:</label>
+                            <input type="number" class="form-control" id="people_count" name="people_count" min="1" value="1" required>
+                        </div>
+                        <div class="form-group">
                             <label for="owner_name" class="form-label">Име на собственик:</label>
                             <input type="text" class="form-control" id="owner_name" name="owner_name">
                         </div>
@@ -251,6 +257,10 @@ try {
                             <input type="number" class="form-control" id="edit_area" name="area" step="0.01" min="0" required>
                         </div>
                         <div class="form-group">
+                            <label for="edit_people_count" class="form-label">Брой хора:</label>
+                            <input type="number" class="form-control" id="edit_people_count" name="people_count" min="1" value="1" required>
+                        </div>
+                        <div class="form-group">
                             <label for="edit_owner_name" class="form-label">Име на собственик:</label>
                             <input type="text" class="form-control" id="edit_owner_name" name="owner_name">
                         </div>
@@ -285,6 +295,7 @@ try {
             document.getElementById('edit_number').value = apartment.number;
             document.getElementById('edit_floor').value = apartment.floor;
             document.getElementById('edit_area').value = apartment.area;
+            document.getElementById('edit_people_count').value = apartment.people_count;
             document.getElementById('edit_owner_name').value = apartment.owner_name;
             document.getElementById('edit_owner_phone').value = apartment.owner_phone;
             document.getElementById('edit_owner_email').value = apartment.owner_email;
