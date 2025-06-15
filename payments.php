@@ -294,7 +294,7 @@ try {
         <div class="grid">
             <?php foreach ($payments as $payment): ?>
             <div class="card">
-                <h3><i class="fas fa-money-check-alt"></i> Плащане за <?php echo htmlspecialchars($payment['month']); ?> <?php echo $payment['year']; ?></h3>
+                <h3><i class="fas fa-money-check-alt"></i> Плащане</h3>
                 <p><strong><i class="fas fa-building"></i> Сграда:</strong> <?php echo htmlspecialchars($payment['building_name']); ?></p>
                 <p><strong><i class="fas fa-home"></i> Апартамент:</strong> <?php echo htmlspecialchars($payment['apartment_number']); ?></p>
                 <p><strong><i class="fas fa-money-bill-wave"></i> Сума:</strong> <?php echo number_format($payment['amount'], 2); ?> лв.</p>
