@@ -247,25 +247,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("SELECT id, amount, fee_id FROM fee_apartments WHERE id IN ($placeholders) AND apartment_id = ? AND is_paid = 0");
             $stmt->execute(array_merge($selected_fees, [$apartment_id]));
             $fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            $total = 0;
-            $fee_ids = [];
-            foreach ($fees as $f) {
-                $total += $f['amount'];
-                $fee_ids[] = $f['fee_id'];
-            }
-            if ($payment_method === 'от баланс') {
-                // Проверка за баланс
-                $stmt = $pdo->prepare("SELECT balance FROM apartment_balances WHERE apartment_id = ?");
-                $stmt->execute([$apartment_id]);
-                $balance = $stmt->fetchColumn();
-                if ($total > $balance) {
-                    $error = showError('Недостатъчен баланс!');
+            error_log('SELECTED FEES RESULT: ' . print_r($fees, true)); // Дебъг лог
+            if (!$fees || count($fees) === 0) {
+                $error = showError('Няма намерени задължения за плащане. Може би вече са платени.');
+            } else {
+                $total = 0;
+                $fee_ids = [];
+                foreach ($fees as $f) {
+                    $total += $f['amount'];
+                    $fee_ids[] = $f['fee_id'];
+                }
+                if ($payment_method === 'от баланс') {
+                    // Проверка за баланс
+                    $stmt = $pdo->prepare("SELECT balance FROM apartment_balances WHERE apartment_id = ?");
+                    $stmt->execute([$apartment_id]);
+                    $balance = $stmt->fetchColumn();
+                    if ($total > $balance) {
+                        $error = showError('Недостатъчен баланс!');
+                    } else {
+                        $pdo->beginTransaction();
+                        try {
+                            // Намали баланса
+                            $stmt = $pdo->prepare("UPDATE apartment_balances SET balance = balance - ? WHERE apartment_id = ?");
+                            $stmt->execute([$total, $apartment_id]);
+                            // Маркирай таксите като платени
+                            $stmt = $pdo->prepare("UPDATE fee_apartments SET is_paid = 1 WHERE id IN ($placeholders)");
+                            $stmt->execute($selected_fees);
+                            // Създай запис в payments за всяка такса
+                            foreach ($fees as $f) {
+                                $stmt = $pdo->prepare("INSERT INTO payments (apartment_id, fee_id, amount, payment_date, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)");
+                                $stmt->execute([$apartment_id, $f['fee_id'], $f['amount'], $payment_date, $payment_method, $notes]);
+                            }
+                            $pdo->commit();
+                            $success = showSuccess('Плащането от баланс е успешно.');
+                            header('Location: accounting.php?tab=debts');
+                            exit();
+                        } catch (Exception $e) {
+                            $pdo->rollBack();
+                            $error = showError('Грешка при плащане: ' . $e->getMessage());
+                        }
+                    }
                 } else {
+                    // Стандартно плащане
                     $pdo->beginTransaction();
                     try {
-                        // Намали баланса
-                        $stmt = $pdo->prepare("UPDATE apartment_balances SET balance = balance - ? WHERE apartment_id = ?");
-                        $stmt->execute([$total, $apartment_id]);
                         // Маркирай таксите като платени
                         $stmt = $pdo->prepare("UPDATE fee_apartments SET is_paid = 1 WHERE id IN ($placeholders)");
                         $stmt->execute($selected_fees);
@@ -275,33 +300,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $stmt->execute([$apartment_id, $f['fee_id'], $f['amount'], $payment_date, $payment_method, $notes]);
                         }
                         $pdo->commit();
-                        $success = showSuccess('Плащането от баланс е успешно.');
+                        $success = showSuccess('Плащането е успешно.');
                         header('Location: accounting.php?tab=debts');
                         exit();
                     } catch (Exception $e) {
                         $pdo->rollBack();
                         $error = showError('Грешка при плащане: ' . $e->getMessage());
                     }
-                }
-            } else {
-                // Стандартно плащане
-                $pdo->beginTransaction();
-                try {
-                    // Маркирай таксите като платени
-                    $stmt = $pdo->prepare("UPDATE fee_apartments SET is_paid = 1 WHERE id IN ($placeholders)");
-                    $stmt->execute($selected_fees);
-                    // Създай запис в payments за всяка такса
-                    foreach ($fees as $f) {
-                        $stmt = $pdo->prepare("INSERT INTO payments (apartment_id, fee_id, amount, payment_date, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$apartment_id, $f['fee_id'], $f['amount'], $payment_date, $payment_method, $notes]);
-                    }
-                    $pdo->commit();
-                    $success = showSuccess('Плащането е успешно.');
-                    header('Location: accounting.php?tab=debts');
-                    exit();
-                } catch (Exception $e) {
-                    $pdo->rollBack();
-                    $error = showError('Грешка при плащане: ' . $e->getMessage());
                 }
             }
         } else {
