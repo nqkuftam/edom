@@ -47,10 +47,17 @@ try {
                             $fee_id = $pdo->lastInsertId();
                             // 2. Създаване на разпределение по апартаменти
                             $stmt2 = $pdo->prepare("INSERT INTO fee_apartments (fee_id, apartment_id, amount) VALUES (?, ?, ?)");
+                            // Дебъгване на получените суми
+                            error_log('POSTED AMOUNTS: ' . print_r($amounts, true));
+                            $inserted = false;
                             foreach ($amounts as $apartment_id => $amount) {
-                                if (is_numeric($amount)) {
+                                if (is_numeric($amount) && $amount !== '') {
                                     $stmt2->execute([$fee_id, $apartment_id, $amount]);
+                                    $inserted = true;
                                 }
+                            }
+                            if (!$inserted) {
+                                throw new Exception('Няма валидни суми за апартаментите!');
                             }
                             $pdo->commit();
                             $success = showSuccess('Таксата и разпределението са добавени успешно.');
