@@ -67,7 +67,7 @@ if ($filter_date_to) {
     $query .= " AND p.payment_date <= ?";
     $params[] = $filter_date_to;
 }
-$query .= " ORDER BY p.payment_date DESC, b.name, a.number";
+$query .= " ORDER BY p.payment_date DESC, p.id DESC, b.name, a.number";
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $paid_fees = $stmt->fetchAll(PDO::FETCH_ASSOC);

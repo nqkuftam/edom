@@ -36,11 +36,11 @@ try {
                     $amount = (float)($_POST['amount'] ?? 0);
                     $payment_date = $_POST['payment_date'] ?? date('Y-m-d');
                     $payment_method = $_POST['payment_method'] ?? '';
-                    $notes = $_POST['notes'] ?? '';
+                    $description = $_POST['description'] ?? '';
                     
                     if ($apartment_id > 0 && $fee_id > 0 && $amount > 0) {
-                        $stmt = $pdo->prepare("INSERT INTO payments (apartment_id, fee_id, amount, payment_date, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$apartment_id, $fee_id, $amount, $payment_date, $payment_method, $notes]);
+                        $stmt = $pdo->prepare("INSERT INTO payments (apartment_id, fee_id, amount, payment_date, payment_method, description) VALUES (?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$apartment_id, $fee_id, $amount, $payment_date, $payment_method, $description]);
                         $success = showSuccess('Плащането е добавено успешно.');
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
@@ -54,11 +54,11 @@ try {
                     $amount = (float)($_POST['amount'] ?? 0);
                     $payment_date = $_POST['payment_date'] ?? '';
                     $payment_method = $_POST['payment_method'] ?? '';
-                    $notes = $_POST['notes'] ?? '';
+                    $description = $_POST['description'] ?? '';
                     
                     if ($id > 0 && $apartment_id > 0 && $fee_id > 0 && $amount > 0) {
-                        $stmt = $pdo->prepare("UPDATE payments SET apartment_id = ?, fee_id = ?, amount = ?, payment_date = ?, payment_method = ?, notes = ? WHERE id = ?");
-                        $stmt->execute([$apartment_id, $fee_id, $amount, $payment_date, $payment_method, $notes, $id]);
+                        $stmt = $pdo->prepare("UPDATE payments SET apartment_id = ?, fee_id = ?, amount = ?, payment_date = ?, payment_method = ?, description = ? WHERE id = ?");
+                        $stmt->execute([$apartment_id, $fee_id, $amount, $payment_date, $payment_method, $description, $id]);
                         $success = showSuccess('Плащането е редактирано успешно.');
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
@@ -103,6 +103,8 @@ try {
         JOIN fee_apartments fa ON fa.fee_id = f.id
         JOIN apartments a ON fa.apartment_id = a.id
         JOIN buildings b ON a.building_id = b.id 
+        LEFT JOIN payments p ON p.fee_id = f.id AND p.apartment_id = fa.apartment_id
+        WHERE p.id IS NULL
         ORDER BY f.created_at DESC
     ");
     $unpaid_fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -224,7 +226,7 @@ try {
                             <th>Апартамент</th>
                             <th>Сума (лв.)</th>
                             <th>Описание</th>
-                            <th>Статус</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -242,7 +244,7 @@ try {
                             <td><?php echo htmlspecialchars($fee['building_name'] . ' - ' . $fee['apartment_number']); ?></td>
                             <td><?php echo number_format($fee['amount'], 2); ?></td>
                             <td><?php echo htmlspecialchars($fee['description']); ?></td>
-                            <td><span class="badge bg-danger">Неплатена</span> <button class="btn btn-success btn-sm pay-fee-btn" data-fee='<?php echo json_encode($fee); ?>'><i class="fas fa-credit-card"></i> Плати</button></td>
+                            <td><button class="btn btn-success btn-sm pay-fee-btn" data-fee='<?php echo json_encode($fee); ?>'><i class="fas fa-credit-card"></i> Плати</button></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -296,8 +298,8 @@ try {
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="notes" class="form-label">Бележки:</label>
-                            <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                            <label for="description" class="form-label">Бележки:</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
                         </div>
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
@@ -358,8 +360,8 @@ try {
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="edit_notes" class="form-label">Бележки:</label>
-                            <textarea class="form-control" id="edit_notes" name="notes" rows="3"></textarea>
+                            <label for="edit_description" class="form-label">Бележки:</label>
+                            <textarea class="form-control" id="edit_description" name="description" rows="3"></textarea>
                         </div>
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
@@ -406,7 +408,7 @@ try {
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Бележка:</label>
-                            <textarea class="form-control" name="notes" rows="2"></textarea>
+                            <textarea class="form-control" name="description" rows="2"></textarea>
                         </div>
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
@@ -435,7 +437,7 @@ try {
             document.getElementById('edit_amount').value = payment.amount;
             document.getElementById('edit_payment_date').value = payment.payment_date;
             document.getElementById('edit_payment_method').value = payment.payment_method;
-            document.getElementById('edit_notes').value = payment.notes;
+            document.getElementById('edit_description').value = payment.description;
             
             var modal = new bootstrap.Modal(document.getElementById('editModal'));
             modal.show();
