@@ -1,4 +1,8 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
 require_once 'includes/db.php';
 require_once 'includes/auth.php';
@@ -18,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($username) || empty($password)) {
         $error = 'Моля, въведете потребителско име и парола';
     } else {
-        if (authenticateUser($username, $password)) {
+        if (login($username, $password)) {
             $_SESSION['user_id'] = 1; // Тъй като има само един потребител
             header('Location: index.php');
             exit();

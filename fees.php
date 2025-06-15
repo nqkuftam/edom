@@ -2,6 +2,10 @@
 session_start();
 require_once 'includes/db.php';
 require_once 'includes/auth.php';
+require_once 'includes/building_selector.php';
+require_once 'includes/error_handler.php';
+require_once 'includes/navigation.php';
+require_once 'includes/styles.php';
 
 // Проверка дали потребителят е логнат
 if (!isLoggedIn()) {
@@ -9,206 +13,171 @@ if (!isLoggedIn()) {
     exit();
 }
 
-// Обработка на POST заявки
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action'])) {
-        switch ($_POST['action']) {
-            case 'add_fee':
-                $apartment_id = (int)($_POST['apartment_id'] ?? 0);
-                $month = $_POST['month'] ?? '';
-                $year = (int)($_POST['year'] ?? 0);
-                $amount = (float)($_POST['amount'] ?? 0);
-                $description = $_POST['description'] ?? '';
-                
-                if ($apartment_id > 0 && !empty($month) && $year > 0 && $amount > 0) {
-                    $stmt = $pdo->prepare("INSERT INTO fees (apartment_id, month, year, amount, description) VALUES (?, ?, ?, ?, ?)");
-                    $stmt->execute([$apartment_id, $month, $year, $amount, $description]);
-                }
-                break;
-                
-            case 'edit_fee':
-                $id = (int)($_POST['id'] ?? 0);
-                $apartment_id = (int)($_POST['apartment_id'] ?? 0);
-                $month = $_POST['month'] ?? '';
-                $year = (int)($_POST['year'] ?? 0);
-                $amount = (float)($_POST['amount'] ?? 0);
-                $description = $_POST['description'] ?? '';
-                
-                if ($id > 0 && $apartment_id > 0 && !empty($month) && $year > 0 && $amount > 0) {
-                    $stmt = $pdo->prepare("UPDATE fees SET apartment_id = ?, month = ?, year = ?, amount = ?, description = ? WHERE id = ?");
-                    $stmt->execute([$apartment_id, $month, $year, $amount, $description, $id]);
-                }
-                break;
-                
-            case 'delete_fee':
-                $id = (int)($_POST['id'] ?? 0);
-                if ($id > 0) {
-                    $stmt = $pdo->prepare("DELETE FROM fees WHERE id = ?");
-                    $stmt->execute([$id]);
-                }
-                break;
+$error = '';
+$success = '';
+
+try {
+    // Вземане на текущата сграда
+    $currentBuilding = getCurrentBuilding();
+    
+    // Обработка на POST заявки
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (isset($_POST['action'])) {
+            switch ($_POST['action']) {
+                case 'add_fee':
+                    $apartment_id = (int)($_POST['apartment_id'] ?? 0);
+                    $month = $_POST['month'] ?? '';
+                    $year = (int)($_POST['year'] ?? 0);
+                    $amount = (float)($_POST['amount'] ?? 0);
+                    $description = $_POST['description'] ?? '';
+                    
+                    if ($apartment_id > 0 && !empty($month) && $year > 0 && $amount > 0) {
+                        $stmt = $pdo->prepare("INSERT INTO fees (apartment_id, month, year, amount, description) VALUES (?, ?, ?, ?, ?)");
+                        $stmt->execute([$apartment_id, $month, $year, $amount, $description]);
+                        $success = showSuccess('Таксата е добавена успешно.');
+                    } else {
+                        $error = showError('Моля, попълнете всички задължителни полета.');
+                    }
+                    break;
+                    
+                case 'edit_fee':
+                    $id = (int)($_POST['id'] ?? 0);
+                    $apartment_id = (int)($_POST['apartment_id'] ?? 0);
+                    $month = $_POST['month'] ?? '';
+                    $year = (int)($_POST['year'] ?? 0);
+                    $amount = (float)($_POST['amount'] ?? 0);
+                    $description = $_POST['description'] ?? '';
+                    
+                    if ($id > 0 && $apartment_id > 0 && !empty($month) && $year > 0 && $amount > 0) {
+                        $stmt = $pdo->prepare("UPDATE fees SET apartment_id = ?, month = ?, year = ?, amount = ?, description = ? WHERE id = ?");
+                        $stmt->execute([$apartment_id, $month, $year, $amount, $description, $id]);
+                        $success = showSuccess('Таксата е редактирана успешно.');
+                    } else {
+                        $error = showError('Моля, попълнете всички задължителни полета.');
+                    }
+                    break;
+                    
+                case 'delete_fee':
+                    $id = (int)($_POST['id'] ?? 0);
+                    if ($id > 0) {
+                        $stmt = $pdo->prepare("DELETE FROM fees WHERE id = ?");
+                        $stmt->execute([$id]);
+                        $success = showSuccess('Таксата е изтрита успешно.');
+                    }
+                    break;
+            }
         }
     }
+    
+    // Вземане на апартаментите според избраната сграда
+    $query = "
+        SELECT a.*, b.name as building_name 
+        FROM apartments a 
+        JOIN buildings b ON a.building_id = b.id 
+    ";
+    $params = [];
+    
+    if ($currentBuilding) {
+        $query .= " WHERE a.building_id = ?";
+        $params[] = $currentBuilding['id'];
+    }
+    
+    $query .= " ORDER BY b.name, a.number";
+    
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
+    $apartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Вземане на таксите според избраната сграда
+    $query = "
+        SELECT f.*, a.number as apartment_number, b.name as building_name 
+        FROM fees f 
+        JOIN apartments a ON f.apartment_id = a.id 
+        JOIN buildings b ON a.building_id = b.id 
+    ";
+    $params = [];
+    
+    if ($currentBuilding) {
+        $query .= " WHERE a.building_id = ?";
+        $params[] = $currentBuilding['id'];
+    }
+    
+    $query .= " ORDER BY f.year DESC, f.month DESC, b.name, a.number";
+    
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
+    $fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Масив с месеци
+    $months = [
+        'Януари', 'Февруари', 'Март', 'Април', 'Май', 'Юни',
+        'Юли', 'Август', 'Септември', 'Октомври', 'Ноември', 'Декември'
+    ];
+    
+} catch (PDOException $e) {
+    $error = handlePDOError($e);
+} catch (Exception $e) {
+    $error = handleError($e);
 }
-
-// Вземане на всички апартаменти за dropdown менюто
-$stmt = $pdo->query("
-    SELECT a.*, b.name as building_name 
-    FROM apartments a 
-    JOIN buildings b ON a.building_id = b.id 
-    ORDER BY b.name, a.number
-");
-$apartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Вземане на всички такси
-$stmt = $pdo->query("
-    SELECT f.*, a.number as apartment_number, b.name as building_name 
-    FROM fees f 
-    JOIN apartments a ON f.apartment_id = a.id 
-    JOIN buildings b ON a.building_id = b.id 
-    ORDER BY f.year DESC, f.month DESC, b.name, a.number
-");
-$fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Масив с месеците
-$months = [
-    'Януари', 'Февруари', 'Март', 'Април', 'Май', 'Юни',
-    'Юли', 'Август', 'Септември', 'Октомври', 'Ноември', 'Декември'
-];
 ?>
 <!DOCTYPE html>
 <html lang="bg">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Управление на такси | Електронен Домоуправител</title>
-    <link rel="stylesheet" href="assets/css/style.css">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .header {
-            background-color: #fff;
-            padding: 1rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
-        }
-        .header h1 {
-            margin: 0;
-            color: #333;
-        }
-        .fees-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-        .fee-card {
-            background-color: #fff;
-            padding: 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .fee-card h3 {
-            margin: 0 0 0.5rem 0;
-            color: #333;
-        }
-        .fee-card p {
-            margin: 0.5rem 0;
-            color: #666;
-        }
-        .fee-actions {
-            margin-top: 1rem;
-            display: flex;
-            gap: 0.5rem;
-        }
-        .btn {
-            padding: 0.5rem 1rem;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-        }
-        .btn-primary {
-            background-color: #007bff;
-            color: white;
-        }
-        .btn-danger {
-            background-color: #dc3545;
-            color: white;
-        }
-        .btn-edit {
-            background-color: #28a745;
-            color: white;
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-        }
-        .modal-content {
-            background-color: white;
-            margin: 10% auto;
-            padding: 20px;
-            width: 80%;
-            max-width: 500px;
-            border-radius: 8px;
-        }
-        .form-group {
-            margin-bottom: 1rem;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-        }
-        .form-group input, .form-group select {
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .back-link {
-            color: #666;
-            text-decoration: none;
-            margin-bottom: 1rem;
-            display: inline-block;
-        }
-    </style>
+    <title>Такси | Електронен Домоуправител</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
     <div class="header">
-        <h1>Управление на такси</h1>
+        <div class="header-content">
+            <h1>Такси</h1>
+            <?php echo renderNavigation('fees'); ?>
+        </div>
     </div>
 
     <div class="container">
-        <a href="index.php" class="back-link">← Назад към таблото</a>
+        <a href="index.php" class="btn btn-secondary mb-3"><i class="fas fa-arrow-left"></i> Назад към таблото</a>
         
-        <button class="btn btn-primary" onclick="showAddModal()">Добави нова такса</button>
+        <?php echo renderBuildingSelector(); ?>
         
-        <div class="fees-grid">
+        <?php if ($currentBuilding): ?>
+        <div class="building-info">
+            <h4><i class="fas fa-building"></i> Текуща сграда: <?php echo htmlspecialchars($currentBuilding['name']); ?></h4>
+            <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
+        </div>
+        <?php endif; ?>
+        
+        <?php if ($error): ?>
+            <?php echo $error; ?>
+        <?php endif; ?>
+        
+        <?php if ($success): ?>
+            <?php echo $success; ?>
+        <?php endif; ?>
+        
+        <button class="btn btn-primary mb-3" onclick="showAddModal()">
+            <i class="fas fa-plus"></i> Добави нова такса
+        </button>
+        
+        <div class="grid">
             <?php foreach ($fees as $fee): ?>
-            <div class="fee-card">
-                <h3>Такса за <?php echo htmlspecialchars($fee['month']); ?> <?php echo $fee['year']; ?></h3>
-                <p><strong>Сграда:</strong> <?php echo htmlspecialchars($fee['building_name']); ?></p>
-                <p><strong>Апартамент:</strong> <?php echo htmlspecialchars($fee['apartment_number']); ?></p>
-                <p><strong>Сума:</strong> <?php echo number_format($fee['amount'], 2); ?> лв.</p>
-                <p><strong>Описание:</strong> <?php echo htmlspecialchars($fee['description']); ?></p>
-                <div class="fee-actions">
-                    <button class="btn btn-edit" onclick="showEditModal(<?php echo htmlspecialchars(json_encode($fee)); ?>)">Редактирай</button>
-                    <button class="btn btn-danger" onclick="deleteFee(<?php echo $fee['id']; ?>)">Изтрий</button>
+            <div class="card">
+                <h3><i class="fas fa-file-invoice-dollar"></i> Такса за <?php echo htmlspecialchars($fee['month']); ?> <?php echo $fee['year']; ?></h3>
+                <p><strong><i class="fas fa-building"></i> Сграда:</strong> <?php echo htmlspecialchars($fee['building_name']); ?></p>
+                <p><strong><i class="fas fa-home"></i> Апартамент:</strong> <?php echo htmlspecialchars($fee['apartment_number']); ?></p>
+                <p><strong><i class="fas fa-money-bill-wave"></i> Сума:</strong> <?php echo number_format($fee['amount'], 2); ?> лв.</p>
+                <?php if ($fee['description']): ?>
+                <p><strong><i class="fas fa-info-circle"></i> Описание:</strong> <?php echo htmlspecialchars($fee['description']); ?></p>
+                <?php endif; ?>
+                <div class="payment-actions">
+                    <button class="btn btn-warning" onclick="showEditModal(<?php echo htmlspecialchars(json_encode($fee)); ?>)">
+                        <i class="fas fa-edit"></i> Редактирай
+                    </button>
+                    <button class="btn btn-danger" onclick="deleteFee(<?php echo $fee['id']; ?>)">
+                        <i class="fas fa-trash"></i> Изтрий
+                    </button>
                 </div>
             </div>
             <?php endforeach; ?>
@@ -216,97 +185,115 @@ $months = [
     </div>
 
     <!-- Модален прозорец за добавяне -->
-    <div id="addModal" class="modal">
-        <div class="modal-content">
-            <h2>Добави нова такса</h2>
-            <form method="POST">
-                <input type="hidden" name="action" value="add_fee">
-                <div class="form-group">
-                    <label for="apartment_id">Апартамент:</label>
-                    <select id="apartment_id" name="apartment_id" required>
-                        <option value="">Изберете апартамент</option>
-                        <?php foreach ($apartments as $apartment): ?>
-                        <option value="<?php echo $apartment['id']; ?>">
-                            <?php echo htmlspecialchars($apartment['building_name'] . ' - Апартамент ' . $apartment['number']); ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
+    <div id="addModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus"></i> Добави нова такса</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="form-group">
-                    <label for="month">Месец:</label>
-                    <select id="month" name="month" required>
-                        <option value="">Изберете месец</option>
-                        <?php foreach ($months as $month): ?>
-                        <option value="<?php echo $month; ?>"><?php echo $month; ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                <div class="modal-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="add_fee">
+                        <div class="form-group">
+                            <label for="apartment_id" class="form-label">Апартамент:</label>
+                            <select class="form-control" id="apartment_id" name="apartment_id" required>
+                                <option value="">Изберете апартамент</option>
+                                <?php foreach ($apartments as $apartment): ?>
+                                <option value="<?php echo $apartment['id']; ?>">
+                                    <?php echo htmlspecialchars($apartment['building_name'] . ' - Апартамент ' . $apartment['number']); ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="month" class="form-label">Месец:</label>
+                            <select class="form-control" id="month" name="month" required>
+                                <option value="">Изберете месец</option>
+                                <?php foreach ($months as $month): ?>
+                                <option value="<?php echo $month; ?>"><?php echo $month; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="year" class="form-label">Година:</label>
+                            <input type="number" class="form-control" id="year" name="year" min="2000" max="2100" value="<?php echo date('Y'); ?>" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="amount" class="form-label">Сума (лв.):</label>
+                            <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="description" class="form-label">Описание:</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+                            <button type="submit" class="btn btn-primary">Добави</button>
+                        </div>
+                    </form>
                 </div>
-                <div class="form-group">
-                    <label for="year">Година:</label>
-                    <input type="number" id="year" name="year" min="2000" max="2100" value="<?php echo date('Y'); ?>" required>
-                </div>
-                <div class="form-group">
-                    <label for="amount">Сума (лв.):</label>
-                    <input type="number" id="amount" name="amount" step="0.01" min="0" required>
-                </div>
-                <div class="form-group">
-                    <label for="description">Описание:</label>
-                    <input type="text" id="description" name="description">
-                </div>
-                <button type="submit" class="btn btn-primary">Добави</button>
-                <button type="button" class="btn btn-danger" onclick="hideModal('addModal')">Отказ</button>
-            </form>
+            </div>
         </div>
     </div>
 
     <!-- Модален прозорец за редактиране -->
-    <div id="editModal" class="modal">
-        <div class="modal-content">
-            <h2>Редактирай такса</h2>
-            <form method="POST">
-                <input type="hidden" name="action" value="edit_fee">
-                <input type="hidden" name="id" id="edit_id">
-                <div class="form-group">
-                    <label for="edit_apartment_id">Апартамент:</label>
-                    <select id="edit_apartment_id" name="apartment_id" required>
-                        <option value="">Изберете апартамент</option>
-                        <?php foreach ($apartments as $apartment): ?>
-                        <option value="<?php echo $apartment['id']; ?>">
-                            <?php echo htmlspecialchars($apartment['building_name'] . ' - Апартамент ' . $apartment['number']); ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
+    <div id="editModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit"></i> Редактирай такса</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="form-group">
-                    <label for="edit_month">Месец:</label>
-                    <select id="edit_month" name="month" required>
-                        <option value="">Изберете месец</option>
-                        <?php foreach ($months as $month): ?>
-                        <option value="<?php echo $month; ?>"><?php echo $month; ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                <div class="modal-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="edit_fee">
+                        <input type="hidden" name="id" id="edit_id">
+                        <div class="form-group">
+                            <label for="edit_apartment_id" class="form-label">Апартамент:</label>
+                            <select class="form-control" id="edit_apartment_id" name="apartment_id" required>
+                                <?php foreach ($apartments as $apartment): ?>
+                                <option value="<?php echo $apartment['id']; ?>">
+                                    <?php echo htmlspecialchars($apartment['building_name'] . ' - Апартамент ' . $apartment['number']); ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_month" class="form-label">Месец:</label>
+                            <select class="form-control" id="edit_month" name="month" required>
+                                <?php foreach ($months as $month): ?>
+                                <option value="<?php echo $month; ?>"><?php echo $month; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_year" class="form-label">Година:</label>
+                            <input type="number" class="form-control" id="edit_year" name="year" min="2000" max="2100" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_amount" class="form-label">Сума (лв.):</label>
+                            <input type="number" class="form-control" id="edit_amount" name="amount" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_description" class="form-label">Описание:</label>
+                            <textarea class="form-control" id="edit_description" name="description" rows="3"></textarea>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+                            <button type="submit" class="btn btn-primary">Запази</button>
+                        </div>
+                    </form>
                 </div>
-                <div class="form-group">
-                    <label for="edit_year">Година:</label>
-                    <input type="number" id="edit_year" name="year" min="2000" max="2100" required>
-                </div>
-                <div class="form-group">
-                    <label for="edit_amount">Сума (лв.):</label>
-                    <input type="number" id="edit_amount" name="amount" step="0.01" min="0" required>
-                </div>
-                <div class="form-group">
-                    <label for="edit_description">Описание:</label>
-                    <input type="text" id="edit_description" name="description">
-                </div>
-                <button type="submit" class="btn btn-primary">Запази</button>
-                <button type="button" class="btn btn-danger" onclick="hideModal('editModal')">Отказ</button>
-            </form>
+            </div>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function showAddModal() {
-            document.getElementById('addModal').style.display = 'block';
+            var modal = new bootstrap.Modal(document.getElementById('addModal'));
+            modal.show();
         }
 
         function showEditModal(fee) {
@@ -316,16 +303,14 @@ $months = [
             document.getElementById('edit_year').value = fee.year;
             document.getElementById('edit_amount').value = fee.amount;
             document.getElementById('edit_description').value = fee.description;
-            document.getElementById('editModal').style.display = 'block';
-        }
-
-        function hideModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
+            
+            var modal = new bootstrap.Modal(document.getElementById('editModal'));
+            modal.show();
         }
 
         function deleteFee(id) {
             if (confirm('Сигурни ли сте, че искате да изтриете тази такса?')) {
-                const form = document.createElement('form');
+                var form = document.createElement('form');
                 form.method = 'POST';
                 form.innerHTML = `
                     <input type="hidden" name="action" value="delete_fee">

@@ -17,10 +17,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $name = $_POST['name'] ?? '';
                 $address = $_POST['address'] ?? '';
                 $floors = (int)($_POST['floors'] ?? 0);
+                $total_apartments = (int)($_POST['total_apartments'] ?? 0);
                 
-                if (!empty($name) && !empty($address) && $floors > 0) {
-                    $stmt = $pdo->prepare("INSERT INTO buildings (name, address, floors) VALUES (?, ?, ?)");
-                    $stmt->execute([$name, $address, $floors]);
+                if (!empty($name) && !empty($address) && $floors > 0 && $total_apartments > 0) {
+                    $stmt = $pdo->prepare("INSERT INTO buildings (name, address, floors, total_apartments) VALUES (?, ?, ?, ?)");
+                    $stmt->execute([$name, $address, $floors, $total_apartments]);
                 }
                 break;
                 
@@ -29,10 +30,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $name = $_POST['name'] ?? '';
                 $address = $_POST['address'] ?? '';
                 $floors = (int)($_POST['floors'] ?? 0);
+                $total_apartments = (int)($_POST['total_apartments'] ?? 0);
                 
-                if ($id > 0 && !empty($name) && !empty($address) && $floors > 0) {
-                    $stmt = $pdo->prepare("UPDATE buildings SET name = ?, address = ?, floors = ? WHERE id = ?");
-                    $stmt->execute([$name, $address, $floors, $id]);
+                if ($id > 0 && !empty($name) && !empty($address) && $floors > 0 && $total_apartments > 0) {
+                    $stmt = $pdo->prepare("UPDATE buildings SET name = ?, address = ?, floors = ?, total_apartments = ? WHERE id = ?");
+                    $stmt->execute([$name, $address, $floors, $total_apartments, $id]);
                 }
                 break;
                 
@@ -195,7 +197,7 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <form method="POST">
                 <input type="hidden" name="action" value="add_building">
                 <div class="form-group">
-                    <label for="name">Име на сградата:</label>
+                    <label for="name">Име на集团有限公司:</label>
                     <input type="text" id="name" name="name" required>
                 </div>
                 <div class="form-group">
@@ -205,6 +207,10 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <div class="form-group">
                     <label for="floors">Брой етажи:</label>
                     <input type="number" id="floors" name="floors" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="total_apartments">Общ брой апартаменти:</label>
+                    <input type="number" id="total_apartments" name="total_apartments" min="1" required>
                 </div>
                 <button type="submit" class="btn btn-primary">Добави</button>
                 <button type="button" class="btn btn-danger" onclick="hideModal('addModal')">Отказ</button>
@@ -220,7 +226,7 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <input type="hidden" name="action" value="edit_building">
                 <input type="hidden" name="id" id="edit_id">
                 <div class="form-group">
-                    <label for="edit_name">Име на сградата:</label>
+                    <label for="edit_name">Име на集团有限公司:</label>
                     <input type="text" id="edit_name" name="name" required>
                 </div>
                 <div class="form-group">
@@ -230,6 +236,10 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <div class="form-group">
                     <label for="edit_floors">Брой етажи:</label>
                     <input type="number" id="edit_floors" name="floors" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_total_apartments">Общ брой апартаменти:</label>
+                    <input type="number" id="edit_total_apartments" name="total_apartments" min="1" required>
                 </div>
                 <button type="submit" class="btn btn-primary">Запази</button>
                 <button type="button" class="btn btn-danger" onclick="hideModal('editModal')">Отказ</button>
@@ -247,6 +257,7 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
             document.getElementById('edit_name').value = building.name;
             document.getElementById('edit_address').value = building.address;
             document.getElementById('edit_floors').value = building.floors;
+            document.getElementById('edit_total_apartments').value = building.total_apartments;
             document.getElementById('editModal').style.display = 'block';
         }
 
