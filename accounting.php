@@ -235,6 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SERVER['REQUEST_METHOD'] === 'POST' &&
         isset($_POST['action']) && $_POST['action'] === 'add_payment'
     ) {
+        error_log('POST add_payment: ' . print_r($_POST, true)); // Дебъг лог
         $apartment_id = (int)($_POST['apartment_id'] ?? 0);
         $selected_fees = $_POST['selected_fees'] ?? [];
         $payment_date = $_POST['payment_date'] ?? date('Y-m-d');
