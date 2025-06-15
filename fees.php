@@ -48,7 +48,7 @@ try {
                             // 2. Създаване на разпределение по апартаменти
                             $stmt2 = $pdo->prepare("INSERT INTO fee_apartments (fee_id, apartment_id, amount) VALUES (?, ?, ?)");
                             foreach ($amounts as $apartment_id => $amount) {
-                                if ($amount > 0) {
+                                if (is_numeric($amount)) {
                                     $stmt2->execute([$fee_id, $apartment_id, $amount]);
                                 }
                             }
