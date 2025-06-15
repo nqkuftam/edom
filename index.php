@@ -113,10 +113,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         <p><strong>Силвия Великова</strong><br><a href="mailto:es.silistra@gmail.com">es.silistra@gmail.com</a></p>
                         <hr>
                         <ul class="list-unstyled mb-3">
-                            <li><i class="fas fa-building"></i> <a href="#">Имотии</a> <span class="badge bg-secondary">24</span></li>
-                            <li><i class="fas fa-users"></i> <a href="#">Клиенти</a></li>
-                            <li><i class="fas fa-euro-sign"></i> <a href="#">Счетоводство</a></li>
-                            <li><i class="fas fa-bell"></i> <a href="#">Сигнали</a></li>
+                            <li><i class="fas fa-building"></i> <a href="apartments.php">Имотии</a> <span class="badge bg-secondary">24</span></li>
+                            <li><i class="fas fa-euro-sign"></i> <a href="accounting.php">Счетоводство</a></li>
                         </ul>
                         <div class="d-flex justify-content-between mb-3">
                             <button class="btn btn-outline-success btn-sm"><i class="fas fa-home"></i></button>
@@ -140,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             </li>
                             <?php endforeach; ?>
                         </ul>
-                        <form method="POST">
+                        <form method="POST" action="index.php">
                             <input type="hidden" name="action" value="add_note">
                             <div class="mb-2">
                                 <textarea class="form-control" rows="2" name="note" placeholder="Нова бележка..." required></textarea>
