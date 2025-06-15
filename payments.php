@@ -96,25 +96,8 @@ try {
     $stmt->execute($params);
     $apartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Вземане на неплатените такси според избраната сграда
-    $query = "
-        SELECT f.*, a.number as apartment_number, b.name as building_name 
-        FROM fees f 
-        JOIN apartments a ON f.apartment_id = a.id 
-        JOIN buildings b ON a.building_id = b.id 
-        WHERE f.id NOT IN (SELECT fee_id FROM payments)
-    ";
-    $params = [];
-    
-    if ($currentBuilding) {
-        $query .= " AND a.building_id = ?";
-        $params[] = $currentBuilding['id'];
-    }
-    
-    $query .= " ORDER BY f.created_at DESC, b.name, a.number";
-    
-    $stmt = $pdo->prepare($query);
-    $stmt->execute($params);
+    // Вземане на всички такси (примерно като неплатени такси)
+    $stmt = $pdo->query("SELECT * FROM fees ORDER BY created_at DESC");
     $unpaid_fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Вземане на плащанията според избраната сграда

@@ -117,24 +117,8 @@ try {
     $stmt->execute($params);
     $apartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Вземане на таксите според избраната сграда
-    $query = "
-        SELECT f.*, a.number as apartment_number, b.name as building_name 
-        FROM fees f 
-        JOIN apartments a ON f.apartment_id = a.id 
-        JOIN buildings b ON a.building_id = b.id 
-    ";
-    $params = [];
-    
-    if ($currentBuilding) {
-        $query .= " WHERE a.building_id = ?";
-        $params[] = $currentBuilding['id'];
-    }
-    
-    $query .= " ORDER BY f.created_at DESC, b.name, a.number";
-    
-    $stmt = $pdo->prepare($query);
-    $stmt->execute($params);
+    // Вземане на всички такси
+    $stmt = $pdo->query("SELECT * FROM fees ORDER BY created_at DESC");
     $fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Масив с месеци
