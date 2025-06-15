@@ -8,6 +8,8 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 require_once 'includes/db.php';
 require_once 'includes/auth.php';
+require_once 'includes/navigation.php';
+require_once 'includes/building_selector.php';
 
 // Проверка дали потребителят е логнат
 if (!isLoggedIn()) {
@@ -64,216 +66,134 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Управление на сгради | Електронен Домоуправител</title>
-    <link rel="stylesheet" href="assets/css/style.css">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .header {
-            background-color: #fff;
-            padding: 1rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
-        }
-        .header h1 {
-            margin: 0;
-            color: #333;
-        }
-        .buildings-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-        .building-card {
-            background-color: #fff;
-            padding: 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .building-card h3 {
-            margin: 0 0 0.5rem 0;
-            color: #333;
-        }
-        .building-card p {
-            margin: 0.5rem 0;
-            color: #666;
-        }
-        .building-actions {
-            margin-top: 1rem;
-            display: flex;
-            gap: 0.5rem;
-        }
-        .btn {
-            padding: 0.5rem 1rem;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-        }
-        .btn-primary {
-            background-color: #007bff;
-            color: white;
-        }
-        .btn-danger {
-            background-color: #dc3545;
-            color: white;
-        }
-        .btn-edit {
-            background-color: #28a745;
-            color: white;
-        }
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-        }
-        .modal-content {
-            background-color: white;
-            margin: 10% auto;
-            padding: 20px;
-            width: 80%;
-            max-width: 500px;
-            border-radius: 8px;
-        }
-        .form-group {
-            margin-bottom: 1rem;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-        }
-        .form-group input {
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .back-link {
-            color: #666;
-            text-decoration: none;
-            margin-bottom: 1rem;
-            display: inline-block;
-        }
-    </style>
+    <title>Сгради | Електронен Домоуправител</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <?php require_once 'includes/styles.php'; ?>
 </head>
 <body>
     <div class="header">
-        <h1>Управление на сгради</h1>
+        <div class="header-content">
+            <h1><i class="fas fa-city"></i> Сгради</h1>
+            <?php echo renderNavigation('buildings'); ?>
+        </div>
     </div>
-
     <div class="container">
-        <a href="index.php" class="back-link">← Назад към таблото</a>
-        
-        <button class="btn btn-primary" onclick="showAddModal()">Добави нова сграда</button>
-        
-        <div class="buildings-grid">
+        <?php echo renderBuildingSelector(); ?>
+        <?php $currentBuilding = getCurrentBuilding(); if ($currentBuilding): ?>
+        <div class="building-info">
+            <h4><i class="fas fa-building"></i> Текуща сграда: <?php echo htmlspecialchars($currentBuilding['name']); ?></h4>
+            <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
+        </div>
+        <?php endif; ?>
+        <a href="index.php" class="btn btn-secondary mb-3"><i class="fas fa-arrow-left"></i> Назад към таблото</a>
+        <button class="btn btn-primary mb-3" onclick="showAddModal()"><i class="fas fa-plus"></i> Добави нова сграда</button>
+        <div class="grid">
             <?php foreach ($buildings as $building): ?>
-            <div class="building-card">
-                <h3><?php echo htmlspecialchars($building['name']); ?></h3>
-                <p><strong>Адрес:</strong> <?php echo htmlspecialchars($building['address']); ?></p>
-                <p><strong>Етажи:</strong> <?php echo $building['floors']; ?></p>
-                <div class="building-actions">
-                    <button class="btn btn-edit" onclick="showEditModal(<?php echo htmlspecialchars(json_encode($building)); ?>)">Редактирай</button>
-                    <button class="btn btn-danger" onclick="deleteBuilding(<?php echo $building['id']; ?>)">Изтрий</button>
+            <div class="card">
+                <h3><i class="fas fa-building"></i> <?php echo htmlspecialchars($building['name']); ?></h3>
+                <p><strong><i class="fas fa-map-marker-alt"></i> Адрес:</strong> <?php echo htmlspecialchars($building['address']); ?></p>
+                <p><strong><i class="fas fa-layer-group"></i> Етажи:</strong> <?php echo $building['floors']; ?></p>
+                <p><strong><i class="fas fa-door-open"></i> Апартаменти:</strong> <?php echo $building['total_apartments']; ?></p>
+                <div class="payment-actions">
+                    <button class="btn btn-warning" onclick="showEditModal(<?php echo htmlspecialchars(json_encode($building)); ?>)"><i class="fas fa-edit"></i> Редактирай</button>
+                    <button class="btn btn-danger" onclick="deleteBuilding(<?php echo $building['id']; ?>)"><i class="fas fa-trash"></i> Изтрий</button>
                 </div>
             </div>
             <?php endforeach; ?>
         </div>
     </div>
-
     <!-- Модален прозорец за добавяне -->
-    <div id="addModal" class="modal">
-        <div class="modal-content">
-            <h2>Добави нова сграда</h2>
-            <form method="POST">
-                <input type="hidden" name="action" value="add_building">
-                <div class="form-group">
-                    <label for="name">Име на集团有限公司:</label>
-                    <input type="text" id="name" name="name" required>
+    <div id="addModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus"></i> Добави нова сграда</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="form-group">
-                    <label for="address">Адрес:</label>
-                    <input type="text" id="address" name="address" required>
+                <div class="modal-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="add_building">
+                        <div class="form-group">
+                            <label for="name" class="form-label">Име на集团有限公司:</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="address" class="form-label">Адрес:</label>
+                            <input type="text" class="form-control" id="address" name="address" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="floors" class="form-label">Брой етажи:</label>
+                            <input type="number" class="form-control" id="floors" name="floors" min="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="total_apartments" class="form-label">Общ брой апартаменти:</label>
+                            <input type="number" class="form-control" id="total_apartments" name="total_apartments" min="1" required>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+                            <button type="submit" class="btn btn-primary">Добави</button>
+                        </div>
+                    </form>
                 </div>
-                <div class="form-group">
-                    <label for="floors">Брой етажи:</label>
-                    <input type="number" id="floors" name="floors" min="1" required>
-                </div>
-                <div class="form-group">
-                    <label for="total_apartments">Общ брой апартаменти:</label>
-                    <input type="number" id="total_apartments" name="total_apartments" min="1" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Добави</button>
-                <button type="button" class="btn btn-danger" onclick="hideModal('addModal')">Отказ</button>
-            </form>
+            </div>
         </div>
     </div>
-
     <!-- Модален прозорец за редактиране -->
-    <div id="editModal" class="modal">
-        <div class="modal-content">
-            <h2>Редактирай сграда</h2>
-            <form method="POST">
-                <input type="hidden" name="action" value="edit_building">
-                <input type="hidden" name="id" id="edit_id">
-                <div class="form-group">
-                    <label for="edit_name">Име на集团有限公司:</label>
-                    <input type="text" id="edit_name" name="name" required>
+    <div id="editModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit"></i> Редактирай сграда</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="form-group">
-                    <label for="edit_address">Адрес:</label>
-                    <input type="text" id="edit_address" name="address" required>
+                <div class="modal-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="edit_building">
+                        <input type="hidden" name="id" id="edit_id">
+                        <div class="form-group">
+                            <label for="edit_name" class="form-label">Име на集团有限公司:</label>
+                            <input type="text" class="form-control" id="edit_name" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_address" class="form-label">Адрес:</label>
+                            <input type="text" class="form-control" id="edit_address" name="address" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_floors" class="form-label">Брой етажи:</label>
+                            <input type="number" class="form-control" id="edit_floors" name="floors" min="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_total_apartments" class="form-label">Общ брой апартаменти:</label>
+                            <input type="number" class="form-control" id="edit_total_apartments" name="total_apartments" min="1" required>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+                            <button type="submit" class="btn btn-primary">Запази</button>
+                        </div>
+                    </form>
                 </div>
-                <div class="form-group">
-                    <label for="edit_floors">Брой етажи:</label>
-                    <input type="number" id="edit_floors" name="floors" min="1" required>
-                </div>
-                <div class="form-group">
-                    <label for="edit_total_apartments">Общ брой апартаменти:</label>
-                    <input type="number" id="edit_total_apartments" name="total_apartments" min="1" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Запази</button>
-                <button type="button" class="btn btn-danger" onclick="hideModal('editModal')">Отказ</button>
-            </form>
+            </div>
         </div>
     </div>
-
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function showAddModal() {
-            document.getElementById('addModal').style.display = 'block';
+            var modal = new bootstrap.Modal(document.getElementById('addModal'));
+            modal.show();
         }
-
         function showEditModal(building) {
             document.getElementById('edit_id').value = building.id;
             document.getElementById('edit_name').value = building.name;
             document.getElementById('edit_address').value = building.address;
             document.getElementById('edit_floors').value = building.floors;
             document.getElementById('edit_total_apartments').value = building.total_apartments;
-            document.getElementById('editModal').style.display = 'block';
+            var modal = new bootstrap.Modal(document.getElementById('editModal'));
+            modal.show();
         }
-
-        function hideModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
-        }
-
         function deleteBuilding(id) {
             if (confirm('Сигурни ли сте, че искате да изтриете тази сграда?')) {
-                const form = document.createElement('form');
+                var form = document.createElement('form');
                 form.method = 'POST';
                 form.innerHTML = `
                     <input type="hidden" name="action" value="delete_building">
@@ -281,13 +201,6 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 `;
                 document.body.appendChild(form);
                 form.submit();
-            }
-        }
-
-        // Затваряне на модалните прозорци при клик извън тях
-        window.onclick = function(event) {
-            if (event.target.className === 'modal') {
-                event.target.style.display = 'none';
             }
         }
     </script>

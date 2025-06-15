@@ -5,9 +5,9 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once('db.php');
 
 function getBuildings() {
-    global $conn;
+    global $pdo;
     $sql = "SELECT id, name, address FROM buildings ORDER BY name";
-    $result = $conn->query($sql);
+    $result = $pdo->query($sql);
     $buildings = [];
     if ($result->num_rows > 0) {
         while($row = $result->fetch_assoc()) {
@@ -18,10 +18,10 @@ function getBuildings() {
 }
 
 function getCurrentBuilding() {
+    global $pdo;
     if (isset($_SESSION['current_building_id'])) {
-        global $conn;
         $sql = "SELECT id, name, address FROM buildings WHERE id = ?";
-        $stmt = $conn->prepare($sql);
+        $stmt = $pdo->prepare($sql);
         $stmt->bind_param("i", $_SESSION['current_building_id']);
         $stmt->execute();
         $result = $stmt->get_result();
