@@ -34,12 +34,8 @@ if (!$stmt->fetch()) {
 $stmt = $pdo->prepare("
     SELECT 
         f.*,
-        a.number as apartment_number,
-        b.name as building_name,
         FORMAT(f.amount, 2) as formatted_amount
     FROM fees f 
-    JOIN apartments a ON f.apartment_id = a.id 
-    JOIN buildings b ON a.building_id = b.id 
     WHERE f.apartment_id = ? 
     AND f.id NOT IN (SELECT fee_id FROM payments)
     ORDER BY f.created_at DESC
