@@ -31,39 +31,41 @@ try {
         if (isset($_POST['action'])) {
             switch ($_POST['action']) {
                 case 'add_apartment':
-                    if (!isset($_POST['building_id']) || !isset($_POST['number']) || !isset($_POST['floor']) || !isset($_POST['area'])) {
-                        $error = '<div class="alert alert-danger">Моля, попълнете всички задължителни полета.</div>';
-                        break;
-                    }
-
-                    $building_id = $_POST['building_id'];
-                    $number = $_POST['number'];
-                    $floor = $_POST['floor'];
-                    $area = $_POST['area'];
-                    $people_count = $_POST['people_count'] ?? 1;
-                    $owner_name = $_POST['owner_name'] ?? null;
-                    $owner_phone = $_POST['owner_phone'] ?? null;
-                    $owner_email = $_POST['owner_email'] ?? null;
-
-                    try {
+                    $building_id = (int)($_POST['building_id'] ?? 0);
+                    $number = $_POST['number'] ?? '';
+                    $floor = (int)($_POST['floor'] ?? 0);
+                    $area = (float)($_POST['area'] ?? 0);
+                    $people_count = (int)($_POST['people_count'] ?? 1);
+                    
+                    // Данни за собственика
+                    $owner_first_name = $_POST['owner_first_name'] ?? '';
+                    $owner_last_name = $_POST['owner_last_name'] ?? '';
+                    $owner_phone = $_POST['owner_phone'] ?? '';
+                    $owner_email = $_POST['owner_email'] ?? '';
+                    $owner_move_in_date = $_POST['owner_move_in_date'] ?? date('Y-m-d');
+                    
+                    if ($building_id > 0 && !empty($number) && $floor >= 0 && $area > 0) {
                         $pdo->beginTransaction();
-
-                        // Добавяне на апартамент
-                        $stmt = $pdo->prepare("INSERT INTO apartments (building_id, number, floor, area, people_count, owner_name, owner_phone, owner_email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$building_id, $number, $floor, $area, $people_count, $owner_name, $owner_phone, $owner_email]);
-                        $apartment_id = $pdo->lastInsertId();
-
-                        // Ако има въведено име на собственик, го добавяме като обитател
-                        if ($owner_name) {
-                            $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, name, phone, email, is_owner, is_main_resident, move_in_date) VALUES (?, ?, ?, ?, 1, 1, CURDATE())");
-                            $stmt->execute([$apartment_id, $owner_name, $owner_phone, $owner_email]);
+                        try {
+                            // Добавяне на апартамента
+                            $stmt = $pdo->prepare("INSERT INTO apartments (building_id, number, floor, area, people_count) VALUES (?, ?, ?, ?, ?)");
+                            $stmt->execute([$building_id, $number, $floor, $area, $people_count]);
+                            $apartment_id = $pdo->lastInsertId();
+                            
+                            // Ако има данни за собственик, го добавяме като обитател
+                            if (!empty($owner_first_name) && !empty($owner_last_name)) {
+                                $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date) VALUES (?, ?, ?, ?, ?, 1, 1, ?)");
+                                $stmt->execute([$apartment_id, $owner_first_name, $owner_last_name, $owner_phone, $owner_email, $owner_move_in_date]);
+                            }
+                            
+                            $pdo->commit();
+                            $success = showSuccess('Апартаментът е добавен успешно.');
+                        } catch (Exception $e) {
+                            $pdo->rollBack();
+                            throw $e;
                         }
-
-                        $pdo->commit();
-                        $success = '<div class="alert alert-success">Апартаментът е добавен успешно.</div>';
-                    } catch (PDOException $e) {
-                        $pdo->rollBack();
-                        $error = '<div class="alert alert-danger">Грешка при добавяне на апартамента: ' . $e->getMessage() . '</div>';
+                    } else {
+                        $error = showError('Моля, попълнете всички задължителни полета.');
                     }
                     break;
                     
@@ -279,18 +281,31 @@ try {
                             <label for="people_count" class="form-label">Брой хора:</label>
                             <input type="number" class="form-control" id="people_count" name="people_count" min="1" value="1" required>
                         </div>
+                        
+                        <hr>
+                        <h5 class="mb-3">Данни за собственика</h5>
+                        
                         <div class="form-group">
-                            <label for="owner_name" class="form-label">Име на собственик:</label>
-                            <input type="text" class="form-control" id="owner_name" name="owner_name">
+                            <label for="owner_first_name" class="form-label">Име на собственик:</label>
+                            <input type="text" class="form-control" id="owner_first_name" name="owner_first_name">
+                        </div>
+                        <div class="form-group">
+                            <label for="owner_last_name" class="form-label">Фамилия на собственик:</label>
+                            <input type="text" class="form-control" id="owner_last_name" name="owner_last_name">
                         </div>
                         <div class="form-group">
                             <label for="owner_phone" class="form-label">Телефон:</label>
                             <input type="tel" class="form-control" id="owner_phone" name="owner_phone">
                         </div>
                         <div class="form-group">
-                            <label for="owner_email" class="form-label">Имейл (по желание):</label>
+                            <label for="owner_email" class="form-label">Имейл:</label>
                             <input type="email" class="form-control" id="owner_email" name="owner_email">
                         </div>
+                        <div class="form-group">
+                            <label for="owner_move_in_date" class="form-label">Дата на настаняване:</label>
+                            <input type="date" class="form-control" id="owner_move_in_date" name="owner_move_in_date" value="<?php echo date('Y-m-d'); ?>">
+                        </div>
+                        
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
                             <button type="submit" class="btn btn-primary">Добави</button>
@@ -330,18 +345,31 @@ try {
                             <label for="edit_people_count" class="form-label">Брой хора:</label>
                             <input type="number" class="form-control" id="edit_people_count" name="people_count" min="1" value="1" required>
                         </div>
+                        
+                        <hr>
+                        <h5 class="mb-3">Данни за собственика</h5>
+                        
                         <div class="form-group">
-                            <label for="edit_owner_name" class="form-label">Име на собственик:</label>
-                            <input type="text" class="form-control" id="edit_owner_name" name="owner_name">
+                            <label for="edit_owner_first_name" class="form-label">Име на собственик:</label>
+                            <input type="text" class="form-control" id="edit_owner_first_name" name="owner_first_name">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_owner_last_name" class="form-label">Фамилия на собственик:</label>
+                            <input type="text" class="form-control" id="edit_owner_last_name" name="owner_last_name">
                         </div>
                         <div class="form-group">
                             <label for="edit_owner_phone" class="form-label">Телефон:</label>
                             <input type="tel" class="form-control" id="edit_owner_phone" name="owner_phone">
                         </div>
                         <div class="form-group">
-                            <label for="edit_owner_email" class="form-label">Имейл (по желание):</label>
+                            <label for="edit_owner_email" class="form-label">Имейл:</label>
                             <input type="email" class="form-control" id="edit_owner_email" name="owner_email">
                         </div>
+                        <div class="form-group">
+                            <label for="edit_owner_move_in_date" class="form-label">Дата на настаняване:</label>
+                            <input type="date" class="form-control" id="edit_owner_move_in_date" name="owner_move_in_date">
+                        </div>
+                        
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
                             <button type="submit" class="btn btn-primary">Запази</button>
@@ -492,9 +520,21 @@ try {
             document.getElementById('edit_floor').value = apartment.floor;
             document.getElementById('edit_area').value = apartment.area;
             document.getElementById('edit_people_count').value = apartment.people_count;
-            document.getElementById('edit_owner_name').value = apartment.owner_name;
-            document.getElementById('edit_owner_phone').value = apartment.owner_phone;
-            document.getElementById('edit_owner_email').value = apartment.owner_email;
+            
+            // Зареждане на данни за собственика от базата
+            fetch(`get_residents.php?apartment_id=${apartment.id}`)
+                .then(response => response.json())
+                .then(residents => {
+                    const owner = residents.find(r => r.is_owner === 1);
+                    if (owner) {
+                        document.getElementById('edit_owner_first_name').value = owner.first_name;
+                        document.getElementById('edit_owner_last_name').value = owner.last_name;
+                        document.getElementById('edit_owner_phone').value = owner.phone || '';
+                        document.getElementById('edit_owner_email').value = owner.email || '';
+                        document.getElementById('edit_owner_move_in_date').value = owner.move_in_date;
+                    }
+                })
+                .catch(error => console.error('Error:', error));
             
             var modal = new bootstrap.Modal(document.getElementById('editModal'));
             modal.show();
