@@ -405,7 +405,7 @@ try {
                         
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
-                            <button type="submit" class="btn btn-primary">Добави</button>
+                            <button type="submit" class="btn btn-primary" id="addApartmentBtn">Добави</button>
                         </div>
                     </form>
                 </div>
@@ -1027,6 +1027,17 @@ try {
                 addModal.addEventListener('hidden.bs.modal', function () {
                     var form = this.querySelector('form');
                     if (form) form.reset();
+                });
+            }
+
+            // Ограничаване на submit на формата за добавяне само при натискане на бутона "Добави"
+            var addForm = document.querySelector('#addModal form');
+            if (addForm) {
+                addForm.addEventListener('submit', function(e) {
+                    if (document.activeElement && document.activeElement.id !== 'addApartmentBtn') {
+                        e.preventDefault();
+                        return false;
+                    }
                 });
             }
         });
