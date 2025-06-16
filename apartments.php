@@ -19,27 +19,19 @@ if (!isLoggedIn()) {
 }
 
 // Дефиниране на типовете имоти
-define('PROPERTY_TYPES', [
-    'apartment' => 'Апартамент',
-    'garage' => 'Гараж',
-    'room' => 'Стая',
-    'office' => 'Офис',
-    'shop' => 'Магазин',
-    'warehouse' => 'Склад'
-]);
+if (!defined('PROPERTY_TYPES')) {
+    define('PROPERTY_TYPES', [
+        'apartment' => 'Апартамент',
+        'garage' => 'Гараж',
+        'room' => 'Стая',
+        'office' => 'Офис',
+        'shop' => 'Магазин',
+        'warehouse' => 'Склад'
+    ]);
+}
 
 $error = '';
 $success = '';
-
-// Добавяне на константа за типовете имоти
-define('PROPERTY_TYPES', [
-    'apartment' => 'Апартамент',
-    'garage' => 'Гараж',
-    'room' => 'Помещение',
-    'office' => 'Офис',
-    'shop' => 'Магазин',
-    'warehouse' => 'Склад'
-]);
 
 try {
     // Вземане на текущата сграда
