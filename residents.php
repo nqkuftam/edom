@@ -3,7 +3,10 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-require_once 'includes/config.php';
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require_once 'includes/db.php';
 require_once 'includes/auth.php';
 require_once 'includes/functions.php';
 
@@ -11,13 +14,11 @@ require_once 'includes/functions.php';
 if (php_sapi_name() !== 'cli') {
     echo '<div style="background:#fffbe6;border:1px solid #f5c518;padding:10px;margin:10px 0;color:#333;">';
     echo '<b>DEBUG SESSION:</b><br><pre>';
-    print_r(
-        [
-            'user_id' => isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null,
-            'session' => $_SESSION
-        ]
-    );
-    echo '</pre></div>';
+    print_r($_SESSION);
+    echo '</pre>';
+    echo '<b>isLoggedIn():</b> ';
+    var_dump(isLoggedIn());
+    echo '</div>';
 }
 
 if (!isset($_SESSION['user_id']) || !isLoggedIn()) {
