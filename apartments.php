@@ -11,13 +11,23 @@ require_once 'includes/auth.php';
 require_once 'includes/building_selector.php';
 require_once 'includes/error_handler.php';
 require_once 'includes/navigation.php';
+require_once 'config.php';
+
 // Проверка дали потребителят е логнат
-if (!isset($_SESSION['user_id']) || !isLoggedIn()) {
-    $_SESSION['error'] = 'Моля, влезте в системата за да продължите.';
+if (!isLoggedIn()) {
     header('Location: login.php');
-    exit();
+    exit;
 }
-require_once 'includes/styles.php';
+
+// Дефиниране на типовете имоти
+define('PROPERTY_TYPES', [
+    'apartment' => 'Апартамент',
+    'garage' => 'Гараж',
+    'room' => 'Стая',
+    'office' => 'Офис',
+    'shop' => 'Магазин',
+    'warehouse' => 'Склад'
+]);
 
 $error = '';
 $success = '';
@@ -36,78 +46,54 @@ try {
     // Вземане на текущата сграда
     $currentBuilding = getCurrentBuilding();
     
-    // Обработка на POST заявки
+    // Обработка на POST заявките
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['action'])) {
             switch ($_POST['action']) {
                 case 'add_apartment':
                     $building_id = (int)($_POST['building_id'] ?? 0);
+                    $type = $_POST['type'] ?? 'apartment';
                     $number = $_POST['number'] ?? '';
                     $floor = (int)($_POST['floor'] ?? 0);
                     $area = (float)($_POST['area'] ?? 0);
                     $people_count = (int)($_POST['people_count'] ?? 1);
                     
                     // Данни за собственика
-                    $owner_first_name = $_POST['owner_first_name'] ?? '';
-                    $owner_last_name = $_POST['owner_last_name'] ?? '';
+                    $owner_name = $_POST['owner_name'] ?? '';
                     $owner_phone = $_POST['owner_phone'] ?? '';
                     $owner_email = $_POST['owner_email'] ?? '';
-                    $owner_move_in_date = $_POST['owner_move_in_date'] ?? date('Y-m-d');
                     
-                    // Данни за допълнителни обитатели
-                    $additional_residents = [];
-                    if (isset($_POST['additional_residents']) && is_array($_POST['additional_residents'])) {
-                        foreach ($_POST['additional_residents'] as $resident) {
-                            if (!empty($resident['first_name']) && !empty($resident['last_name'])) {
-                                $additional_residents[] = [
-                                    'first_name' => $resident['first_name'],
-                                    'last_name' => $resident['last_name'],
-                                    'phone' => $resident['phone'] ?? '',
-                                    'email' => $resident['email'] ?? '',
-                                    'is_owner' => 0,
-                                    'is_primary' => 0,
-                                    'move_in_date' => $resident['move_in_date'] ?? date('Y-m-d')
-                                ];
-                            }
-                        }
+                    // Валидация според типа на имота
+                    $isValid = true;
+                    if ($type === 'apartment') {
+                        $isValid = !empty($number) && $floor >= 0 && $area > 0;
+                    } else {
+                        $isValid = $area > 0;
                     }
                     
-                    if ($building_id > 0 && !empty($number) && $floor >= 0 && $area > 0) {
+                    if ($building_id > 0 && $isValid) {
                         $pdo->beginTransaction();
                         try {
-                            // Добавяне на апартамента
-                            $stmt = $pdo->prepare("INSERT INTO apartments (building_id, number, floor, area, people_count) VALUES (?, ?, ?, ?, ?)");
-                            $stmt->execute([$building_id, $number, $floor, $area, $people_count]);
+                            // Добавяне на имота
+                            $stmt = $pdo->prepare("INSERT INTO apartments (building_id, type, number, floor, area, people_count) VALUES (?, ?, ?, ?, ?, ?)");
+                            $stmt->execute([$building_id, $type, $number, $floor, $area, $people_count]);
                             $apartment_id = $pdo->lastInsertId();
                             
                             // Ако има данни за собственик, го добавяме като обитател
-                            if (!empty($owner_first_name) && !empty($owner_last_name)) {
-                                $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date) VALUES (?, ?, ?, ?, ?, 1, 1, ?)");
-                                $stmt->execute([$apartment_id, $owner_first_name, $owner_last_name, $owner_phone, $owner_email, $owner_move_in_date]);
-                            }
-                            
-                            // Добавяне на допълнителни обитатели
-                            if (!empty($additional_residents)) {
-                                $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                                foreach ($additional_residents as $resident) {
-                                    $stmt->execute([
-                                        $apartment_id,
-                                        $resident['first_name'],
-                                        $resident['last_name'],
-                                        $resident['phone'],
-                                        $resident['email'],
-                                        $resident['is_owner'],
-                                        $resident['is_primary'],
-                                        $resident['move_in_date']
-                                    ]);
-                                }
+                            if (!empty($owner_name)) {
+                                $owner_parts = explode(' ', $owner_name, 2);
+                                $owner_first_name = $owner_parts[0];
+                                $owner_last_name = isset($owner_parts[1]) ? $owner_parts[1] : '';
+                                
+                                $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date) VALUES (?, ?, ?, ?, ?, 1, 1, CURDATE())");
+                                $stmt->execute([$apartment_id, $owner_first_name, $owner_last_name, $owner_phone, $owner_email]);
                             }
                             
                             $pdo->commit();
-                            $success = showSuccess('Апартаментът е добавен успешно.');
+                            $success = showSuccess('Имотът е добавен успешно.');
                         } catch (Exception $e) {
                             $pdo->rollBack();
-                            throw $e;
+                            $error = showError('Грешка при добавяне на имота: ' . $e->getMessage());
                         }
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
@@ -117,6 +103,7 @@ try {
                 case 'edit_apartment':
                     $id = (int)($_POST['id'] ?? 0);
                     $building_id = (int)($_POST['building_id'] ?? 0);
+                    $type = $_POST['type'] ?? 'apartment';
                     $number = $_POST['number'] ?? '';
                     $floor = (int)($_POST['floor'] ?? 0);
                     $area = (float)($_POST['area'] ?? 0);
@@ -125,10 +112,49 @@ try {
                     $owner_phone = $_POST['owner_phone'] ?? '';
                     $owner_email = $_POST['owner_email'] ?? '';
                     
-                    if ($id > 0 && $building_id > 0 && !empty($number) && $floor >= 0 && $area > 0) {
-                        $stmt = $pdo->prepare("UPDATE apartments SET building_id = ?, number = ?, floor = ?, area = ?, people_count = ?, owner_name = ?, owner_phone = ?, owner_email = ? WHERE id = ?");
-                        $stmt->execute([$building_id, $number, $floor, $area, $people_count, $owner_name, $owner_phone, $owner_email, $id]);
-                        $success = showSuccess('Апартаментът е редактиран успешно.');
+                    // Валидация според типа на имота
+                    $isValid = true;
+                    if ($type === 'apartment') {
+                        $isValid = !empty($number) && $floor >= 0 && $area > 0;
+                    } else {
+                        $isValid = $area > 0;
+                    }
+                    
+                    if ($id > 0 && $building_id > 0 && $isValid) {
+                        $pdo->beginTransaction();
+                        try {
+                            // Редактиране на имота
+                            $stmt = $pdo->prepare("UPDATE apartments SET building_id = ?, type = ?, number = ?, floor = ?, area = ?, people_count = ? WHERE id = ?");
+                            $stmt->execute([$building_id, $type, $number, $floor, $area, $people_count, $id]);
+                            
+                            // Ако има данни за собственик, го редактираме или добавяме
+                            if (!empty($owner_name)) {
+                                $owner_parts = explode(' ', $owner_name, 2);
+                                $owner_first_name = $owner_parts[0];
+                                $owner_last_name = isset($owner_parts[1]) ? $owner_parts[1] : '';
+                                
+                                // Проверяваме дали вече има собственик
+                                $stmt = $pdo->prepare("SELECT id FROM residents WHERE apartment_id = ? AND is_owner = 1 AND is_primary = 1");
+                                $stmt->execute([$id]);
+                                $owner = $stmt->fetch();
+                                
+                                if ($owner) {
+                                    // Редактиране на съществуващ собственик
+                                    $stmt = $pdo->prepare("UPDATE residents SET first_name = ?, last_name = ?, phone = ?, email = ? WHERE id = ?");
+                                    $stmt->execute([$owner_first_name, $owner_last_name, $owner_phone, $owner_email, $owner['id']]);
+                                } else {
+                                    // Добавяне на нов собственик
+                                    $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date) VALUES (?, ?, ?, ?, ?, 1, 1, CURDATE())");
+                                    $stmt->execute([$id, $owner_first_name, $owner_last_name, $owner_phone, $owner_email]);
+                                }
+                            }
+                            
+                            $pdo->commit();
+                            $success = showSuccess('Имотът е редактиран успешно.');
+                        } catch (Exception $e) {
+                            $pdo->rollBack();
+                            $error = showError('Грешка при редактиране на имота: ' . $e->getMessage());
+                        }
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
                     }
@@ -137,9 +163,25 @@ try {
                 case 'delete_apartment':
                     $id = (int)($_POST['id'] ?? 0);
                     if ($id > 0) {
-                        $stmt = $pdo->prepare("DELETE FROM apartments WHERE id = ?");
-                        $stmt->execute([$id]);
-                        $success = showSuccess('Апартаментът е изтрит успешно.');
+                        try {
+                            $pdo->beginTransaction();
+                            
+                            // Изтриване на обитателите
+                            $stmt = $pdo->prepare("DELETE FROM residents WHERE apartment_id = ?");
+                            $stmt->execute([$id]);
+                            
+                            // Изтриване на имота
+                            $stmt = $pdo->prepare("DELETE FROM apartments WHERE id = ?");
+                            $stmt->execute([$id]);
+                            
+                            $pdo->commit();
+                            $success = showSuccess('Имотът е изтрит успешно.');
+                        } catch (Exception $e) {
+                            $pdo->rollBack();
+                            $error = showError('Грешка при изтриване на имота: ' . $e->getMessage());
+                        }
+                    } else {
+                        $error = showError('Невалиден идентификатор на имота.');
                     }
                     break;
                     
@@ -200,22 +242,24 @@ try {
     $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Вземане на апартаментите според избраната сграда
-    $query = "
-        SELECT a.*, b.name as building_name 
-        FROM apartments a 
-        JOIN buildings b ON a.building_id = b.id 
-    ";
-    $params = [];
-    
-    if ($currentBuilding) {
-        $query .= " WHERE a.building_id = ?";
-        $params[] = $currentBuilding['id'];
-    }
-    
-    $query .= " ORDER BY b.name, a.number";
-    
-    $stmt = $pdo->prepare($query);
-    $stmt->execute($params);
+    $stmt = $pdo->prepare("
+        SELECT a.*, b.name as building_name,
+               CONCAT(r.first_name, ' ', r.last_name) as owner_name,
+               r.phone as owner_phone,
+               r.email as owner_email
+        FROM apartments a
+        LEFT JOIN buildings b ON a.building_id = b.id
+        LEFT JOIN residents r ON a.id = r.apartment_id AND r.is_owner = 1 AND r.is_primary = 1
+        WHERE a.building_id = ?
+        ORDER BY 
+            CASE 
+                WHEN a.type = 'apartment' THEN 1
+                WHEN a.type = 'garage' THEN 2
+                ELSE 3
+            END,
+            a.number
+    ");
+    $stmt->execute([$currentBuilding['id']]);
     $apartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
 } catch (PDOException $e) {
@@ -269,24 +313,29 @@ try {
         <div class="grid">
             <?php foreach ($apartments as $apartment): ?>
             <div class="card">
-                <h3><i class="fas fa-home"></i> Апартамент <?php echo htmlspecialchars($apartment['number']); ?></h3>
+                <h3>
+                    <i class="fas fa-<?php echo $apartment['type'] === 'apartment' ? 'home' : ($apartment['type'] === 'garage' ? 'car' : 'building'); ?>"></i>
+                    <?php echo htmlspecialchars(PROPERTY_TYPES[$apartment['type']] ?? $apartment['type']); ?>
+                    <?php if ($apartment['type'] === 'apartment'): ?>
+                        <?php echo htmlspecialchars($apartment['number']); ?>
+                    <?php endif; ?>
+                </h3>
                 <p><strong><i class="fas fa-building"></i> Сграда:</strong> <?php echo htmlspecialchars($apartment['building_name']); ?></p>
-                <p><strong><i class="fas fa-layer-group"></i> Етаж:</strong> <?php echo $apartment['floor']; ?></p>
+                <?php if ($apartment['type'] === 'apartment'): ?>
+                    <p><strong><i class="fas fa-layer-group"></i> Етаж:</strong> <?php echo $apartment['floor']; ?></p>
+                <?php endif; ?>
                 <p><strong><i class="fas fa-ruler-combined"></i> Площ:</strong> <?php echo $apartment['area']; ?> м²</p>
                 <?php if ($apartment['owner_name']): ?>
-                <p><strong><i class="fas fa-user"></i> Собственик:</strong> <?php echo htmlspecialchars($apartment['owner_name']); ?></p>
+                    <p><strong><i class="fas fa-user"></i> Собственик:</strong> <?php echo htmlspecialchars($apartment['owner_name']); ?></p>
                 <?php endif; ?>
                 <?php if ($apartment['owner_phone']): ?>
-                <p><strong><i class="fas fa-phone"></i> Телефон:</strong> <?php echo htmlspecialchars($apartment['owner_phone']); ?></p>
+                    <p><strong><i class="fas fa-phone"></i> Телефон:</strong> <?php echo htmlspecialchars($apartment['owner_phone']); ?></p>
                 <?php endif; ?>
                 <?php if ($apartment['owner_email']): ?>
-                <p><strong><i class="fas fa-envelope"></i> Имейл:</strong> <?php echo htmlspecialchars($apartment['owner_email']); ?></p>
+                    <p><strong><i class="fas fa-envelope"></i> Имейл:</strong> <?php echo htmlspecialchars($apartment['owner_email']); ?></p>
                 <?php endif; ?>
-                <div class="payment-actions">
-                    <button class="btn btn-info" onclick="showResidentsModal(<?php echo $apartment['id']; ?>)">
-                        <i class="fas fa-users"></i> Обитатели
-                    </button>
-                    <button class="btn btn-warning" onclick="showEditModal(<?php echo htmlspecialchars(json_encode($apartment)); ?>)">
+                <div class="card-actions">
+                    <button class="btn btn-primary" onclick="showEditForm(<?php echo $apartment['id']; ?>)">
                         <i class="fas fa-edit"></i> Редактирай
                     </button>
                     <button class="btn btn-danger" onclick="deleteApartment(<?php echo $apartment['id']; ?>)">
@@ -311,27 +360,27 @@ try {
                         <input type="hidden" name="action" value="add_apartment">
                         <input type="hidden" name="building_id" value="<?php echo $currentBuilding ? $currentBuilding['id'] : ''; ?>">
                         <div class="form-group">
-                            <label for="number" class="form-label">Номер:</label>
-                            <input type="text" class="form-control" id="number" name="number" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="type" class="form-label">Тип на имота:</label>
+                            <label for="type">Тип на имота:</label>
                             <select class="form-control" id="type" name="type" required>
-                                <?php foreach (PROPERTY_TYPES as $value => $label): ?>
-                                    <option value="<?php echo $value; ?>"><?php echo $label; ?></option>
+                                <?php foreach (PROPERTY_TYPES as $key => $value): ?>
+                                    <option value="<?php echo $key; ?>"><?php echo $value; ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label for="floor" class="form-label">Етаж:</label>
+                        <div class="form-group" id="number_group">
+                            <label for="number">Номер:</label>
+                            <input type="text" class="form-control" id="number" name="number" required>
+                        </div>
+                        <div class="form-group" id="floor_group">
+                            <label for="floor">Етаж:</label>
                             <input type="number" class="form-control" id="floor" name="floor" min="0" required>
                         </div>
                         <div class="form-group">
-                            <label for="area" class="form-label">Площ (м²):</label>
+                            <label for="area">Площ (м²):</label>
                             <input type="number" class="form-control" id="area" name="area" step="0.01" min="0" required>
                         </div>
-                        <div class="form-group">
-                            <label for="people_count" class="form-label">Брой хора:</label>
+                        <div class="form-group" id="people_count_group">
+                            <label for="people_count">Брой хора:</label>
                             <input type="number" class="form-control" id="people_count" name="people_count" min="1" value="1" required>
                         </div>
                         
@@ -339,12 +388,8 @@ try {
                         <h5 class="mb-3">Данни за собственика</h5>
                         
                         <div class="form-group">
-                            <label for="owner_first_name" class="form-label">Име на собственик:</label>
-                            <input type="text" class="form-control" id="owner_first_name" name="owner_first_name">
-                        </div>
-                        <div class="form-group">
-                            <label for="owner_last_name" class="form-label">Фамилия на собственик:</label>
-                            <input type="text" class="form-control" id="owner_last_name" name="owner_last_name">
+                            <label for="owner_name" class="form-label">Име на собственик:</label>
+                            <input type="text" class="form-control" id="owner_name" name="owner_name">
                         </div>
                         <div class="form-group">
                             <label for="owner_phone" class="form-label">Телефон:</label>
@@ -353,10 +398,6 @@ try {
                         <div class="form-group">
                             <label for="owner_email" class="form-label">Имейл:</label>
                             <input type="email" class="form-control" id="owner_email" name="owner_email">
-                        </div>
-                        <div class="form-group">
-                            <label for="owner_move_in_date" class="form-label">Дата на настаняване:</label>
-                            <input type="date" class="form-control" id="owner_move_in_date" name="owner_move_in_date" value="<?php echo date('Y-m-d'); ?>">
                         </div>
                         
                         <hr>
@@ -380,76 +421,63 @@ try {
     </div>
 
     <!-- Модален прозорец за редактиране -->
-    <div id="editModal" class="modal fade" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-edit"></i> Редактирай апартамент</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="modal" id="editModal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="document.getElementById('editModal').style.display='none'">&times;</span>
+            <h2>Редактиране на имот</h2>
+            <form id="editForm">
+                <input type="hidden" id="edit_id" name="id">
+                <input type="hidden" id="edit_building_id" name="building_id">
+                
+                <div class="form-group">
+                    <label for="edit_type">Тип на имота:</label>
+                    <select class="form-control" id="edit_type" name="type" required>
+                        <?php foreach (PROPERTY_TYPES as $key => $value): ?>
+                            <option value="<?php echo $key; ?>"><?php echo $value; ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
-                <div class="modal-body">
-                    <form method="POST">
-                        <input type="hidden" name="action" value="edit_apartment">
-                        <input type="hidden" name="id" id="edit_id">
-                        <input type="hidden" name="building_id" id="edit_building_id" value="<?php echo $currentBuilding ? $currentBuilding['id'] : ''; ?>">
-                        <div class="form-group">
-                            <label for="edit_number" class="form-label">Номер:</label>
-                            <input type="text" class="form-control" id="edit_number" name="number" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit_floor" class="form-label">Етаж:</label>
-                            <input type="number" class="form-control" id="edit_floor" name="floor" min="0" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit_area" class="form-label">Площ (м²):</label>
-                            <input type="number" class="form-control" id="edit_area" name="area" step="0.01" min="0" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit_people_count" class="form-label">Брой хора:</label>
-                            <input type="number" class="form-control" id="edit_people_count" name="people_count" min="1" value="1" required>
-                        </div>
-                        
-                        <hr>
-                        <h5 class="mb-3">Данни за собственика</h5>
-                        
-                        <div class="form-group">
-                            <label for="edit_owner_first_name" class="form-label">Име на собственик:</label>
-                            <input type="text" class="form-control" id="edit_owner_first_name" name="owner_first_name">
-                        </div>
-                        <div class="form-group">
-                            <label for="edit_owner_last_name" class="form-label">Фамилия на собственик:</label>
-                            <input type="text" class="form-control" id="edit_owner_last_name" name="owner_last_name">
-                        </div>
-                        <div class="form-group">
-                            <label for="edit_owner_phone" class="form-label">Телефон:</label>
-                            <input type="tel" class="form-control" id="edit_owner_phone" name="owner_phone">
-                        </div>
-                        <div class="form-group">
-                            <label for="edit_owner_email" class="form-label">Имейл:</label>
-                            <input type="email" class="form-control" id="edit_owner_email" name="owner_email">
-                        </div>
-                        <div class="form-group">
-                            <label for="edit_owner_move_in_date" class="form-label">Дата на настаняване:</label>
-                            <input type="date" class="form-control" id="edit_owner_move_in_date" name="owner_move_in_date">
-                        </div>
-                        
-                        <hr>
-                        <h5 class="mb-3">Допълнителни обитатели</h5>
-                        <div id="editAdditionalResidents">
-                            <!-- Тук ще се добавят форми за допълнителни обитатели -->
-                        </div>
-                        
-                        <button type="button" class="btn btn-info mb-3" onclick="addEditResidentForm()">
-                            <i class="fas fa-plus"></i> Добави обитател
-                        </button>
-                        
-                        <div class="text-end">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
-                            <button type="submit" class="btn btn-primary">Запази</button>
-                        </div>
-                    </form>
+
+                <div class="form-group" id="edit_number_group">
+                    <label for="edit_number">Номер:</label>
+                    <input type="text" class="form-control" id="edit_number" name="number" required>
                 </div>
-            </div>
+
+                <div class="form-group" id="edit_floor_group">
+                    <label for="edit_floor">Етаж:</label>
+                    <input type="number" class="form-control" id="edit_floor" name="floor" min="0" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="edit_area">Площ (м²):</label>
+                    <input type="number" class="form-control" id="edit_area" name="area" step="0.01" min="0" required>
+                </div>
+
+                <div class="form-group" id="edit_people_count_group">
+                    <label for="edit_people_count">Брой хора:</label>
+                    <input type="number" class="form-control" id="edit_people_count" name="people_count" min="1" value="1" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="edit_owner_name">Име на собственик:</label>
+                    <input type="text" class="form-control" id="edit_owner_name" name="owner_name">
+                </div>
+
+                <div class="form-group">
+                    <label for="edit_owner_phone">Телефон на собственик:</label>
+                    <input type="text" class="form-control" id="edit_owner_phone" name="owner_phone">
+                </div>
+
+                <div class="form-group">
+                    <label for="edit_owner_email">Имейл на собственик:</label>
+                    <input type="email" class="form-control" id="edit_owner_email" name="owner_email">
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Запази</button>
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('editModal').style.display='none'">Отказ</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -669,15 +697,24 @@ try {
         }
 
         function deleteApartment(id) {
-            if (confirm('Сигурни ли сте, че искате да изтриете този апартамент?')) {
-                var form = document.createElement('form');
-                form.method = 'POST';
-                form.innerHTML = `
-                    <input type="hidden" name="action" value="delete_apartment">
-                    <input type="hidden" name="id" value="${id}">
-                `;
-                document.body.appendChild(form);
-                form.submit();
+            if (confirm('Сигурни ли сте, че искате да изтриете този имот?')) {
+                const formData = new FormData();
+                formData.append('action', 'delete_apartment');
+                formData.append('id', id);
+                
+                fetch('apartments.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.text())
+                .then(html => {
+                    // Презареждане на страницата за да се покажат промените
+                    window.location.reload();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Възникна грешка при изтриване на имота.');
+                });
             }
         }
 
@@ -884,6 +921,111 @@ try {
             `;
             
             container.appendChild(residentForm);
+        }
+
+        // Функция за показване/скриване на полетата според типа на имота
+        function togglePropertyFields() {
+            const type = document.getElementById('type').value;
+            const floorGroup = document.getElementById('floor_group');
+            const peopleCountGroup = document.getElementById('people_count_group');
+            const numberGroup = document.getElementById('number_group');
+            
+            if (type === 'apartment') {
+                floorGroup.style.display = 'block';
+                peopleCountGroup.style.display = 'block';
+                numberGroup.style.display = 'block';
+            } else {
+                floorGroup.style.display = 'none';
+                peopleCountGroup.style.display = 'none';
+                numberGroup.style.display = 'none';
+            }
+        }
+
+        // Функция за показване/скриване на полетата в редактиращата форма
+        function toggleEditPropertyFields() {
+            const type = document.getElementById('edit_type').value;
+            const floorGroup = document.getElementById('edit_floor_group');
+            const peopleCountGroup = document.getElementById('edit_people_count_group');
+            const numberGroup = document.getElementById('edit_number_group');
+            
+            if (type === 'apartment') {
+                floorGroup.style.display = 'block';
+                peopleCountGroup.style.display = 'block';
+                numberGroup.style.display = 'block';
+            } else {
+                floorGroup.style.display = 'none';
+                peopleCountGroup.style.display = 'none';
+                numberGroup.style.display = 'none';
+            }
+        }
+
+        // Добавяне на event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // За формата за добавяне
+            const typeSelect = document.getElementById('type');
+            if (typeSelect) {
+                typeSelect.addEventListener('change', togglePropertyFields);
+                togglePropertyFields(); // Извикване при зареждане
+            }
+            
+            // За формата за редактиране
+            const editTypeSelect = document.getElementById('edit_type');
+            if (editTypeSelect) {
+                editTypeSelect.addEventListener('change', toggleEditPropertyFields);
+            }
+            
+            // Обработка на формата за редактиране
+            const editForm = document.getElementById('editForm');
+            if (editForm) {
+                editForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const formData = new FormData(editForm);
+                    formData.append('action', 'edit_apartment');
+                    
+                    fetch('apartments.php', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.text())
+                    .then(html => {
+                        // Презареждане на страницата за да се покажат промените
+                        window.location.reload();
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Възникна грешка при запазване на промените.');
+                    });
+                });
+            }
+        });
+
+        // Функция за показване на формата за редактиране
+        function showEditForm(id) {
+            fetch(`get_apartment.php?id=${id}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('edit_id').value = data.id;
+                    document.getElementById('edit_building_id').value = data.building_id;
+                    document.getElementById('edit_type').value = data.type;
+                    document.getElementById('edit_number').value = data.number;
+                    document.getElementById('edit_floor').value = data.floor;
+                    document.getElementById('edit_area').value = data.area;
+                    document.getElementById('edit_people_count').value = data.people_count;
+                    document.getElementById('edit_owner_name').value = data.owner_name;
+                    document.getElementById('edit_owner_phone').value = data.owner_phone;
+                    document.getElementById('edit_owner_email').value = data.owner_email;
+                    
+                    // Показване/скриване на полетата според типа
+                    toggleEditPropertyFields();
+                    
+                    // Показване на модалния прозорец
+                    document.getElementById('editModal').style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Възникна грешка при зареждане на данните за имота.');
+                });
         }
     </script>
 </body>
