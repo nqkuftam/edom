@@ -1,10 +1,30 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 require_once 'includes/config.php';
 require_once 'includes/auth.php';
 require_once 'includes/functions.php';
 
-// Проверка за автентикация
-checkAuth();
+// ДЕБЪГ: Показване на сесията и user_id
+if (php_sapi_name() !== 'cli') {
+    echo '<div style="background:#fffbe6;border:1px solid #f5c518;padding:10px;margin:10px 0;color:#333;">';
+    echo '<b>DEBUG SESSION:</b><br><pre>';
+    print_r(
+        [
+            'user_id' => isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null,
+            'session' => $_SESSION
+        ]
+    );
+    echo '</pre></div>';
+}
+
+if (!isset($_SESSION['user_id']) || !isLoggedIn()) {
+    $_SESSION['error'] = 'Моля, влезте в системата за да продължите.';
+    header('Location: login.php');
+    exit();
+}
 
 $db = getDBConnection();
 
