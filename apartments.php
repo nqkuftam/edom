@@ -1032,8 +1032,15 @@ try {
 
             // Ограничаване на submit на формата за добавяне само при натискане на бутона "Добави"
             var addForm = document.querySelector('#addModal form');
-            if (addForm) {
+            var addModal = document.getElementById('addModal');
+            if (addForm && addModal) {
                 addForm.addEventListener('submit', function(e) {
+                    // Забранява submit ако модалът не е отворен
+                    if (!addModal.classList.contains('show')) {
+                        e.preventDefault();
+                        return false;
+                    }
+                    // Позволява submit само ако е натиснат бутона "Добави"
                     if (document.activeElement && document.activeElement.id !== 'addApartmentBtn') {
                         e.preventDefault();
                         return false;
