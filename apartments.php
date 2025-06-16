@@ -299,7 +299,7 @@ try {
             <?php echo $success; ?>
         <?php endif; ?>
         
-        <button class="btn btn-primary mb-3" onclick="showAddModal()">
+        <button type="button" class="btn btn-primary mb-3" onclick="showAddModal()">
             <i class="fas fa-plus"></i> Добави нов апартамент
         </button>
         
@@ -331,7 +331,7 @@ try {
                     <button class="btn btn-primary" onclick="showEditForm(<?php echo $apartment['id']; ?>)">
                         <i class="fas fa-edit"></i> Редактирай
                     </button>
-                    <button class="btn btn-danger" onclick="deleteApartment(<?php echo $apartment['id']; ?>)">
+                    <button type="button" class="btn btn-danger" onclick="deleteApartment(<?php echo $apartment['id']; ?>)">
                         <i class="fas fa-trash"></i> Изтрий
                     </button>
                 </div>
@@ -486,7 +486,7 @@ try {
                         <!-- Списък с обитатели ще се зарежда динамично -->
                     </div>
                     
-                    <button class="btn btn-primary mb-3" onclick="showAddResidentModal()">
+                    <button type="button" class="btn btn-primary mb-3" onclick="showAddResidentModal()">
                         <i class="fas fa-plus"></i> Добави нов обитател
                     </button>
                 </div>
@@ -1018,6 +1018,15 @@ try {
                         console.error('Error:', error);
                         alert('Възникна грешка при запазване на промените.');
                     });
+                });
+            }
+
+            // Изчистване на формата за добавяне при затваряне на модала
+            var addModal = document.getElementById('addModal');
+            if (addModal) {
+                addModal.addEventListener('hidden.bs.modal', function () {
+                    var form = this.querySelector('form');
+                    if (form) form.reset();
                 });
             }
         });
