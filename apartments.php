@@ -710,14 +710,29 @@ try {
                     method: 'POST',
                     body: formData
                 })
-                .then(response => response.text())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Грешка при изпращане на заявката');
+                    }
+                    return response.text();
+                })
                 .then(html => {
-                    // Презареждане на страницата за да се покажат промените
-                    window.location.reload();
+                    // Проверяваме дали има съобщение за грешка в HTML отговора
+                    if (html.includes('alert-danger')) {
+                        const errorMatch = html.match(/alert-danger[^>]*>([^<]+)/);
+                        if (errorMatch) {
+                            alert(errorMatch[1]);
+                        } else {
+                            alert('Възникна грешка при изтриване на имота.');
+                        }
+                    } else {
+                        // Ако няма грешка, презареждаме страницата
+                        window.location.reload();
+                    }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('Възникна грешка при изтриване на имота.');
+                    alert('Възникна грешка при изтриване на имота: ' + error.message);
                 });
             }
         }
