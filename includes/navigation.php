@@ -4,6 +4,7 @@ function renderNavigation($currentPage = '') {
         'index' => ['title' => 'Табло', 'url' => 'index.php'],
         'buildings' => ['title' => 'Сгради', 'url' => 'buildings.php'],
         'apartments' => ['title' => 'Апартаменти', 'url' => 'apartments.php'],
+        'residents' => ['title' => 'Обитатели', 'url' => 'residents.php'],
         'fees' => ['title' => 'Такси', 'url' => 'fees.php'],
         'payments' => ['title' => 'Плащания', 'url' => 'payments.php'],
         'reports' => ['title' => 'Отчети', 'url' => 'reports.php']

@@ -575,6 +575,46 @@ require_once 'includes/styles.php';
       <div class="tab-pane fade" id="payments" role="tabpanel">
         <!-- Плащанията се местят тук -->
         <div class="col-lg-12 col-md-12">
+            <!-- Добавяме филтри -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <form method="GET" class="row g-3 align-items-end">
+                        <input type="hidden" name="tab" value="payments">
+                        <div class="col-md-3">
+                            <label for="filter_apartment" class="form-label">Апартамент:</label>
+                            <select name="filter_apartment" id="filter_apartment" class="form-select">
+                                <option value="">Всички апартаменти</option>
+                                <?php foreach ($apartments as $apartment): ?>
+                                    <option value="<?php echo $apartment['id']; ?>" <?php if (isset($_GET['filter_apartment']) && $_GET['filter_apartment'] == $apartment['id']) echo 'selected'; ?>>
+                                        <?php echo htmlspecialchars($apartment['building_name'] . ' - Апартамент ' . $apartment['number']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="filter_method" class="form-label">Метод на плащане:</label>
+                            <select name="filter_method" id="filter_method" class="form-select">
+                                <option value="">Всички</option>
+                                <?php foreach ($payment_methods as $method): ?>
+                                    <option value="<?php echo $method; ?>" <?php if (isset($_GET['filter_method']) && $_GET['filter_method'] == $method) echo 'selected'; ?>><?php echo $method; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="filter_date_from" class="form-label">От дата:</label>
+                            <input type="date" name="filter_date_from" id="filter_date_from" class="form-control" value="<?php echo isset($_GET['filter_date_from']) ? htmlspecialchars($_GET['filter_date_from']) : ''; ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="filter_date_to" class="form-label">До дата:</label>
+                            <input type="date" name="filter_date_to" id="filter_date_to" class="form-control" value="<?php echo isset($_GET['filter_date_from']) ? htmlspecialchars($_GET['filter_date_to']) : ''; ?>">
+                        </div>
+                        <div class="col-md-12 text-end">
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Филтрирай</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <div class="card mb-3 shadow-sm" style="font-size:0.95rem;">
                 <div class="card-header d-flex justify-content-between align-items-center bg-success text-white">
                     <span><i class="fas fa-credit-card"></i> Плащания</span>
@@ -594,7 +634,50 @@ require_once 'includes/styles.php';
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($payments as $payment): ?>
+                                <?php 
+                                // Прилагаме филтрите към заявката за плащания
+                                $payments_query = "
+                                    SELECT p.*, a.number AS apartment_number, b.name AS building_name
+                                    FROM payments p
+                                    JOIN apartments a ON p.apartment_id = a.id
+                                    JOIN buildings b ON a.building_id = b.id
+                                    WHERE 1=1
+                                ";
+                                $payments_params = [];
+
+                                if ($currentBuilding) {
+                                    $payments_query .= " AND a.building_id = ?";
+                                    $payments_params[] = $currentBuilding['id'];
+                                }
+
+                                if (isset($_GET['filter_apartment']) && $_GET['filter_apartment']) {
+                                    $payments_query .= " AND a.id = ?";
+                                    $payments_params[] = $_GET['filter_apartment'];
+                                }
+
+                                if (isset($_GET['filter_method']) && $_GET['filter_method']) {
+                                    $payments_query .= " AND p.payment_method = ?";
+                                    $payments_params[] = $_GET['filter_method'];
+                                }
+
+                                if (isset($_GET['filter_date_from']) && $_GET['filter_date_from']) {
+                                    $payments_query .= " AND p.payment_date >= ?";
+                                    $payments_params[] = $_GET['filter_date_from'];
+                                }
+
+                                if (isset($_GET['filter_date_to']) && $_GET['filter_date_to']) {
+                                    $payments_query .= " AND p.payment_date <= ?";
+                                    $payments_params[] = $_GET['filter_date_to'];
+                                }
+
+                                $payments_query .= " ORDER BY p.payment_date DESC, p.id DESC";
+                                
+                                $stmt = $pdo->prepare($payments_query);
+                                $stmt->execute($payments_params);
+                                $filtered_payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                                foreach ($filtered_payments as $payment): 
+                                ?>
                                 <tr>
                                     <td><?php echo htmlspecialchars($payment['building_name'] . ' - ' . $payment['apartment_number']); ?></td>
                                     <td><?php echo number_format($payment['amount'], 2); ?></td>
