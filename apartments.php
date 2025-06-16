@@ -154,34 +154,29 @@ try {
                 case 'delete_apartment':
                     try {
                         $id = $_POST['id'];
-                        
                         // Първо проверяваме дали има свързани плащания
                         $stmt = $pdo->prepare("SELECT COUNT(*) FROM payments WHERE apartment_id = ?");
                         $stmt->execute([$id]);
                         if ($stmt->fetchColumn() > 0) {
                             throw new Exception('Не можете да изтриете имота, защото има свързани плащания.');
                         }
-                        
                         // Проверяваме за свързани такси
                         $stmt = $pdo->prepare("SELECT COUNT(*) FROM fees WHERE apartment_id = ?");
                         $stmt->execute([$id]);
                         if ($stmt->fetchColumn() > 0) {
                             throw new Exception('Не можете да изтриете имота, защото има свързани такси.');
                         }
-                        
                         // Изтриване на обитателите
                         $stmt = $pdo->prepare("DELETE FROM residents WHERE apartment_id = ?");
                         $stmt->execute([$id]);
-                        
                         // Изтриване на имота
                         $stmt = $pdo->prepare("DELETE FROM apartments WHERE id = ?");
                         $stmt->execute([$id]);
-                        
-                        $_SESSION['success'] = 'Имотът беше успешно изтрит.';
+                        echo 'OK';
                     } catch (Exception $e) {
-                        $_SESSION['error'] = 'Грешка при изтриване на имота: ' . $e->getMessage();
+                        echo '<div class="alert alert-danger">Грешка при изтриване на имота: ' . $e->getMessage() . '</div>';
                     }
-                    break;
+                    exit;
                     
                 case 'add_resident':
                     $apartment_id = (int)($_POST['apartment_id'] ?? 0);
