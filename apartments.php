@@ -920,15 +920,24 @@ try {
             const floorGroup = document.getElementById('floor_group');
             const peopleCountGroup = document.getElementById('people_count_group');
             const numberGroup = document.getElementById('number_group');
-            
+            const numberInput = document.getElementById('number');
+            const floorInput = document.getElementById('floor');
+            const peopleCountInput = document.getElementById('people_count');
+
             if (type === 'apartment') {
                 floorGroup.style.display = 'block';
                 peopleCountGroup.style.display = 'block';
                 numberGroup.style.display = 'block';
+                numberInput.required = true;
+                floorInput.required = true;
+                peopleCountInput.required = true;
             } else {
                 floorGroup.style.display = 'none';
                 peopleCountGroup.style.display = 'none';
                 numberGroup.style.display = 'none';
+                numberInput.required = false;
+                floorInput.required = false;
+                peopleCountInput.required = false;
             }
         }
 
@@ -938,15 +947,24 @@ try {
             const floorGroup = document.getElementById('edit_floor_group');
             const peopleCountGroup = document.getElementById('edit_people_count_group');
             const numberGroup = document.getElementById('edit_number_group');
-            
+            const numberInput = document.getElementById('edit_number');
+            const floorInput = document.getElementById('edit_floor');
+            const peopleCountInput = document.getElementById('edit_people_count');
+
             if (type === 'apartment') {
                 floorGroup.style.display = 'block';
                 peopleCountGroup.style.display = 'block';
                 numberGroup.style.display = 'block';
+                numberInput.required = true;
+                floorInput.required = true;
+                peopleCountInput.required = true;
             } else {
                 floorGroup.style.display = 'none';
                 peopleCountGroup.style.display = 'none';
                 numberGroup.style.display = 'none';
+                numberInput.required = false;
+                floorInput.required = false;
+                peopleCountInput.required = false;
             }
         }
 
