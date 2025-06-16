@@ -144,6 +144,7 @@ require_once 'includes/styles.php';
                         <hr>
                         <ul class="list-unstyled mb-0">
                             <li class="mb-2"><i class="fas fa-building"></i> <a href="apartments.php">Имоти</a></li>
+                            <li class="mb-2"><i class="fas fa-users"></i> <a href="residents.php">Обитатели</a></li>
                             <li><i class="fas fa-euro-sign"></i> <a href="accounting.php">Счетоводство</a></li>
                         </ul>
                     </div>
