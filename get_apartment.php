@@ -4,7 +4,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 require_once 'includes/db.php';
-require_once 'auth.php';
+require_once 'includes/auth.php';
 
 // Проверка дали потребителят е логнат
 if (!isLoggedIn()) {
