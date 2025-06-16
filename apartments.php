@@ -154,26 +154,34 @@ try {
                 case 'delete_apartment':
                     try {
                         $id = $_POST['id'];
+                        $pdo->beginTransaction();
+                        
                         // Първо проверяваме дали има свързани плащания
                         $stmt = $pdo->prepare("SELECT COUNT(*) FROM payments WHERE apartment_id = ?");
                         $stmt->execute([$id]);
                         if ($stmt->fetchColumn() > 0) {
                             throw new Exception('Не можете да изтриете имота, защото има свързани плащания.');
                         }
+                        
                         // Проверяваме за свързани такси в fee_apartments
                         $stmt = $pdo->prepare("SELECT COUNT(*) FROM fee_apartments WHERE apartment_id = ?");
                         $stmt->execute([$id]);
                         if ($stmt->fetchColumn() > 0) {
                             throw new Exception('Не можете да изтриете имота, защото има свързани такси.');
                         }
+                        
                         // Изтриване на обитателите
                         $stmt = $pdo->prepare("DELETE FROM residents WHERE apartment_id = ?");
                         $stmt->execute([$id]);
+                        
                         // Изтриване на имота
                         $stmt = $pdo->prepare("DELETE FROM apartments WHERE id = ?");
                         $stmt->execute([$id]);
+                        
+                        $pdo->commit();
                         echo 'OK';
                     } catch (Exception $e) {
+                        $pdo->rollBack();
                         echo '<div class="alert alert-danger">Грешка при изтриване на имота: ' . $e->getMessage() . '</div>';
                     }
                     exit;
@@ -700,9 +708,9 @@ try {
                 })
                 .then(response => response.text())
                 .then(html => {
-                    console.log('Сървърен отговор:', html); // Показва целия отговор в конзолата
-                    if (html.includes('alert-danger')) {
-                        // Извлича текста на грешката от alert
+                    if (html.trim() === 'OK') {
+                        window.location.reload();
+                    } else {
                         const div = document.createElement('div');
                         div.innerHTML = html;
                         const alertDiv = div.querySelector('.alert-danger');
@@ -711,8 +719,6 @@ try {
                         } else {
                             alert('Възникна грешка при изтриване на имота.');
                         }
-                    } else {
-                        window.location.reload();
                     }
                 })
                 .catch(error => {
