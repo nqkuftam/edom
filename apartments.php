@@ -697,6 +697,13 @@ try {
         }
 
         function deleteApartment(id) {
+            // Проверяваме дали модалният прозорец за добавяне е отворен
+            const addModal = document.getElementById('addModal');
+            if (addModal && addModal.classList.contains('show')) {
+                alert('Моля, затворете първо формата за добавяне на имот преди да изтриете друг имот.');
+                return;
+            }
+
             if (confirm('Сигурни ли сте, че искате да изтриете този имот?')) {
                 const formData = new FormData();
                 formData.append('action', 'delete_apartment');
@@ -1027,29 +1034,37 @@ try {
                 });
             }
 
-            // Изчистване на формата за добавяне при затваряне на модала
-            var addModal = document.getElementById('addModal');
-            if (addModal) {
-                addModal.addEventListener('hidden.bs.modal', function () {
-                    var form = this.querySelector('form');
-                    if (form) form.reset();
-                });
-            }
-
-            // Ограничаване на submit на формата за добавяне само при натискане на бутона "Добави"
-            var addForm = document.querySelector('#addModal form');
-            var addModal = document.getElementById('addModal');
-            if (addForm && addModal) {
+            // Добавяне на event listener за формата за добавяне
+            const addForm = document.querySelector('#addModal form');
+            if (addForm) {
                 addForm.addEventListener('submit', function(e) {
-                    // Забранява submit ако модалът не е отворен
-                    if (!addModal.classList.contains('show')) {
+                    // Проверяваме дали формата е отворена
+                    const addModal = document.getElementById('addModal');
+                    if (!addModal || !addModal.classList.contains('show')) {
                         e.preventDefault();
                         return false;
                     }
-                    // Позволява submit само ако е натиснат бутона "Добави"
+                    
+                    // Проверяваме дали бутонът "Добави" е натиснат
                     if (document.activeElement && document.activeElement.id !== 'addApartmentBtn') {
                         e.preventDefault();
                         return false;
+                    }
+                });
+            }
+
+            // Изчистване на формата при затваряне на модала
+            const addModal = document.getElementById('addModal');
+            if (addModal) {
+                addModal.addEventListener('hidden.bs.modal', function () {
+                    const form = this.querySelector('form');
+                    if (form) {
+                        form.reset();
+                        // Изчистваме всички допълнителни обитатели
+                        const additionalResidents = document.getElementById('additionalResidents');
+                        if (additionalResidents) {
+                            additionalResidents.innerHTML = '';
+                        }
                     }
                 });
             }
