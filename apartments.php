@@ -22,6 +22,16 @@ require_once 'includes/styles.php';
 $error = '';
 $success = '';
 
+// Добавяне на константа за типовете имоти
+define('PROPERTY_TYPES', [
+    'apartment' => 'Апартамент',
+    'garage' => 'Гараж',
+    'room' => 'Помещение',
+    'office' => 'Офис',
+    'shop' => 'Магазин',
+    'warehouse' => 'Склад'
+]);
+
 try {
     // Вземане на текущата сграда
     $currentBuilding = getCurrentBuilding();
@@ -303,6 +313,14 @@ try {
                         <div class="form-group">
                             <label for="number" class="form-label">Номер:</label>
                             <input type="text" class="form-control" id="number" name="number" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="type" class="form-label">Тип на имота:</label>
+                            <select class="form-control" id="type" name="type" required>
+                                <?php foreach (PROPERTY_TYPES as $value => $label): ?>
+                                    <option value="<?php echo $value; ?>"><?php echo $label; ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label for="floor" class="form-label">Етаж:</label>
