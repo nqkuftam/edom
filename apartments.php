@@ -160,8 +160,8 @@ try {
                         if ($stmt->fetchColumn() > 0) {
                             throw new Exception('Не можете да изтриете имота, защото има свързани плащания.');
                         }
-                        // Проверяваме за свързани такси
-                        $stmt = $pdo->prepare("SELECT COUNT(*) FROM fees WHERE apartment_id = ?");
+                        // Проверяваме за свързани такси в fee_apartments
+                        $stmt = $pdo->prepare("SELECT COUNT(*) FROM fee_apartments WHERE apartment_id = ?");
                         $stmt->execute([$id]);
                         if ($stmt->fetchColumn() > 0) {
                             throw new Exception('Не можете да изтриете имота, защото има свързани такси.');
