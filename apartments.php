@@ -157,6 +157,20 @@ try {
                         try {
                             $pdo->beginTransaction();
                             
+                            // Първо проверяваме дали има свързани плащания
+                            $stmt = $pdo->prepare("SELECT COUNT(*) FROM payments WHERE apartment_id = ?");
+                            $stmt->execute([$id]);
+                            if ($stmt->fetchColumn() > 0) {
+                                throw new Exception('Не можете да изтриете имота, защото има свързани плащания.');
+                            }
+                            
+                            // Проверяваме за свързани такси
+                            $stmt = $pdo->prepare("SELECT COUNT(*) FROM fees WHERE apartment_id = ?");
+                            $stmt->execute([$id]);
+                            if ($stmt->fetchColumn() > 0) {
+                                throw new Exception('Не можете да изтриете имота, защото има свързани такси.');
+                            }
+                            
                             // Изтриване на обитателите
                             $stmt = $pdo->prepare("DELETE FROM residents WHERE apartment_id = ?");
                             $stmt->execute([$id]);
@@ -412,63 +426,62 @@ try {
     </div>
 
     <!-- Модален прозорец за редактиране -->
-    <div class="modal" id="editModal" style="display: none;">
-        <div class="modal-content">
-            <span class="close" onclick="document.getElementById('editModal').style.display='none'">&times;</span>
-            <h2>Редактиране на имот</h2>
-            <form id="editForm">
-                <input type="hidden" id="edit_id" name="id">
-                <input type="hidden" id="edit_building_id" name="building_id">
-                
-                <div class="form-group">
-                    <label for="edit_type">Тип на имота:</label>
-                    <select class="form-control" id="edit_type" name="type" required>
-                        <?php foreach (PROPERTY_TYPES as $key => $value): ?>
-                            <option value="<?php echo $key; ?>"><?php echo $value; ?></option>
-                        <?php endforeach; ?>
-                    </select>
+    <div id="editModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit"></i> Редактирай имот</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-
-                <div class="form-group" id="edit_number_group">
-                    <label for="edit_number">Номер:</label>
-                    <input type="text" class="form-control" id="edit_number" name="number" required>
+                <div class="modal-body">
+                    <form id="editForm">
+                        <input type="hidden" id="edit_id" name="id">
+                        <input type="hidden" id="edit_building_id" name="building_id">
+                        <div class="form-group">
+                            <label for="edit_type">Тип на имота:</label>
+                            <select class="form-control" id="edit_type" name="type" required>
+                                <?php foreach (PROPERTY_TYPES as $key => $value): ?>
+                                    <option value="<?php echo $key; ?>"><?php echo $value; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group" id="edit_number_group">
+                            <label for="edit_number">Номер:</label>
+                            <input type="text" class="form-control" id="edit_number" name="number">
+                        </div>
+                        <div class="form-group" id="edit_floor_group">
+                            <label for="edit_floor">Етаж:</label>
+                            <input type="number" class="form-control" id="edit_floor" name="floor" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_area">Площ (м²):</label>
+                            <input type="number" class="form-control" id="edit_area" name="area" step="0.01" min="0" required>
+                        </div>
+                        <div class="form-group" id="edit_people_count_group">
+                            <label for="edit_people_count">Брой хора:</label>
+                            <input type="number" class="form-control" id="edit_people_count" name="people_count" min="1" value="1">
+                        </div>
+                        <hr>
+                        <h5 class="mb-3">Данни за собственика</h5>
+                        <div class="form-group">
+                            <label for="edit_owner_name">Име на собственик:</label>
+                            <input type="text" class="form-control" id="edit_owner_name" name="owner_name">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_owner_phone">Телефон на собственик:</label>
+                            <input type="text" class="form-control" id="edit_owner_phone" name="owner_phone">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_owner_email">Имейл на собственик:</label>
+                            <input type="email" class="form-control" id="edit_owner_email" name="owner_email">
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+                            <button type="submit" class="btn btn-primary">Запази</button>
+                        </div>
+                    </form>
                 </div>
-
-                <div class="form-group" id="edit_floor_group">
-                    <label for="edit_floor">Етаж:</label>
-                    <input type="number" class="form-control" id="edit_floor" name="floor" min="0" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="edit_area">Площ (м²):</label>
-                    <input type="number" class="form-control" id="edit_area" name="area" step="0.01" min="0" required>
-                </div>
-
-                <div class="form-group" id="edit_people_count_group">
-                    <label for="edit_people_count">Брой хора:</label>
-                    <input type="number" class="form-control" id="edit_people_count" name="people_count" min="1" value="1" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="edit_owner_name">Име на собственик:</label>
-                    <input type="text" class="form-control" id="edit_owner_name" name="owner_name">
-                </div>
-
-                <div class="form-group">
-                    <label for="edit_owner_phone">Телефон на собственик:</label>
-                    <input type="text" class="form-control" id="edit_owner_phone" name="owner_phone">
-                </div>
-
-                <div class="form-group">
-                    <label for="edit_owner_email">Имейл на собственик:</label>
-                    <input type="email" class="form-control" id="edit_owner_email" name="owner_email">
-                </div>
-
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Запази</button>
-                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('editModal').style.display='none'">Отказ</button>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 
@@ -1017,19 +1030,20 @@ try {
                     document.getElementById('edit_id').value = data.id;
                     document.getElementById('edit_building_id').value = data.building_id;
                     document.getElementById('edit_type').value = data.type;
-                    document.getElementById('edit_number').value = data.number;
-                    document.getElementById('edit_floor').value = data.floor;
-                    document.getElementById('edit_area').value = data.area;
-                    document.getElementById('edit_people_count').value = data.people_count;
-                    document.getElementById('edit_owner_name').value = data.owner_name;
-                    document.getElementById('edit_owner_phone').value = data.owner_phone;
-                    document.getElementById('edit_owner_email').value = data.owner_email;
+                    document.getElementById('edit_number').value = data.number || '';
+                    document.getElementById('edit_floor').value = data.floor || '';
+                    document.getElementById('edit_area').value = data.area || '';
+                    document.getElementById('edit_people_count').value = data.people_count || '';
+                    document.getElementById('edit_owner_name').value = data.owner_name || '';
+                    document.getElementById('edit_owner_phone').value = data.owner_phone || '';
+                    document.getElementById('edit_owner_email').value = data.owner_email || '';
                     
                     // Показване/скриване на полетата според типа
                     toggleEditPropertyFields();
                     
                     // Показване на модалния прозорец
-                    document.getElementById('editModal').style.display = 'block';
+                    var modal = new bootstrap.Modal(document.getElementById('editModal'));
+                    modal.show();
                 })
                 .catch(error => {
                     console.error('Error:', error);
