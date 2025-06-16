@@ -698,33 +698,30 @@ try {
                 const formData = new FormData();
                 formData.append('action', 'delete_apartment');
                 formData.append('id', id);
-                
+
                 fetch('apartments.php', {
                     method: 'POST',
                     body: formData
                 })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Грешка при изпращане на заявката');
-                    }
-                    return response.text();
-                })
+                .then(response => response.text())
                 .then(html => {
-                    // Проверяваме дали има съобщение за грешка в HTML отговора
+                    console.log('Сървърен отговор:', html); // Показва целия отговор в конзолата
                     if (html.includes('alert-danger')) {
-                        const errorMatch = html.match(/alert-danger[^>]*>([^<]+)/);
-                        if (errorMatch) {
-                            alert(errorMatch[1]);
+                        // Извлича текста на грешката от alert
+                        const div = document.createElement('div');
+                        div.innerHTML = html;
+                        const alertDiv = div.querySelector('.alert-danger');
+                        if (alertDiv) {
+                            alert(alertDiv.textContent.trim());
                         } else {
                             alert('Възникна грешка при изтриване на имота.');
                         }
                     } else {
-                        // Ако няма грешка, презареждаме страницата
                         window.location.reload();
                     }
                 })
                 .catch(error => {
-                    console.error('Error:', error);
+                    console.error('Грешка при fetch:', error);
                     alert('Възникна грешка при изтриване на имота: ' + error.message);
                 });
             }
