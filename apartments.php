@@ -31,47 +31,39 @@ try {
         if (isset($_POST['action'])) {
             switch ($_POST['action']) {
                 case 'add_apartment':
-                    $building_id = (int)($_POST['building_id'] ?? 0);
-                    $number = $_POST['number'] ?? '';
-                    $floor = (int)($_POST['floor'] ?? 0);
-                    $area = (float)($_POST['area'] ?? 0);
-                    $people_count = (int)($_POST['people_count'] ?? 1);
-                    $owner_name = $_POST['owner_name'] ?? '';
-                    $owner_phone = $_POST['owner_phone'] ?? '';
-                    $owner_email = $_POST['owner_email'] ?? '';
-                    
-                    if ($building_id > 0 && !empty($number) && $floor >= 0 && $area > 0) {
+                    if (!isset($_POST['building_id']) || !isset($_POST['number']) || !isset($_POST['floor']) || !isset($_POST['area'])) {
+                        $error = '<div class="alert alert-danger">Моля, попълнете всички задължителни полета.</div>';
+                        break;
+                    }
+
+                    $building_id = $_POST['building_id'];
+                    $number = $_POST['number'];
+                    $floor = $_POST['floor'];
+                    $area = $_POST['area'];
+                    $people_count = $_POST['people_count'] ?? 1;
+                    $owner_name = $_POST['owner_name'] ?? null;
+                    $owner_phone = $_POST['owner_phone'] ?? null;
+                    $owner_email = $_POST['owner_email'] ?? null;
+
+                    try {
+                        $pdo->beginTransaction();
+
+                        // Добавяне на апартамент
                         $stmt = $pdo->prepare("INSERT INTO apartments (building_id, number, floor, area, people_count, owner_name, owner_phone, owner_email) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                         $stmt->execute([$building_id, $number, $floor, $area, $people_count, $owner_name, $owner_phone, $owner_email]);
                         $apartment_id = $pdo->lastInsertId();
-                        
-                        // Добавяне на обитатели
-                        if (isset($_POST['residents']) && is_array($_POST['residents'])) {
-                            $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date, move_out_date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                            foreach ($_POST['residents'] as $resident) {
-                                if (!empty($resident['first_name']) && !empty($resident['last_name']) && !empty($resident['move_in_date'])) {
-                                    $is_owner = isset($resident['is_owner']) ? 1 : 0;
-                                    $is_primary = isset($resident['is_primary']) ? 1 : 0;
-                                    $move_out_date = !empty($resident['move_out_date']) ? $resident['move_out_date'] : null;
-                                    $stmt->execute([
-                                        $apartment_id,
-                                        $resident['first_name'],
-                                        $resident['last_name'],
-                                        $resident['phone'] ?? null,
-                                        $resident['email'] ?? null,
-                                        $is_owner,
-                                        $is_primary,
-                                        $resident['move_in_date'],
-                                        $move_out_date,
-                                        $resident['notes'] ?? null
-                                    ]);
-                                }
-                            }
+
+                        // Ако има въведено име на собственик, го добавяме като обитател
+                        if ($owner_name) {
+                            $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, name, phone, email, is_owner, is_main_resident, move_in_date) VALUES (?, ?, ?, ?, 1, 1, CURDATE())");
+                            $stmt->execute([$apartment_id, $owner_name, $owner_phone, $owner_email]);
                         }
-                        
-                        $success = showSuccess('Апартаментът е добавен успешно.');
-                    } else {
-                        $error = showError('Моля, попълнете всички задължителни полета.');
+
+                        $pdo->commit();
+                        $success = '<div class="alert alert-success">Апартаментът е добавен успешно.</div>';
+                    } catch (PDOException $e) {
+                        $pdo->rollBack();
+                        $error = '<div class="alert alert-danger">Грешка при добавяне на апартамента: ' . $e->getMessage() . '</div>';
                     }
                     break;
                     
@@ -89,35 +81,6 @@ try {
                     if ($id > 0 && $building_id > 0 && !empty($number) && $floor >= 0 && $area > 0) {
                         $stmt = $pdo->prepare("UPDATE apartments SET building_id = ?, number = ?, floor = ?, area = ?, people_count = ?, owner_name = ?, owner_phone = ?, owner_email = ? WHERE id = ?");
                         $stmt->execute([$building_id, $number, $floor, $area, $people_count, $owner_name, $owner_phone, $owner_email, $id]);
-                        
-                        // Изтриване на старите обитатели
-                        $stmt = $pdo->prepare("DELETE FROM residents WHERE apartment_id = ?");
-                        $stmt->execute([$id]);
-                        
-                        // Добавяне на новите обитатели
-                        if (isset($_POST['residents']) && is_array($_POST['residents'])) {
-                            $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date, move_out_date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                            foreach ($_POST['residents'] as $resident) {
-                                if (!empty($resident['first_name']) && !empty($resident['last_name']) && !empty($resident['move_in_date'])) {
-                                    $is_owner = isset($resident['is_owner']) ? 1 : 0;
-                                    $is_primary = isset($resident['is_primary']) ? 1 : 0;
-                                    $move_out_date = !empty($resident['move_out_date']) ? $resident['move_out_date'] : null;
-                                    $stmt->execute([
-                                        $id,
-                                        $resident['first_name'],
-                                        $resident['last_name'],
-                                        $resident['phone'] ?? null,
-                                        $resident['email'] ?? null,
-                                        $is_owner,
-                                        $is_primary,
-                                        $resident['move_in_date'],
-                                        $move_out_date,
-                                        $resident['notes'] ?? null
-                                    ]);
-                                }
-                            }
-                        }
-                        
                         $success = showSuccess('Апартаментът е редактиран успешно.');
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
@@ -132,6 +95,55 @@ try {
                         $success = showSuccess('Апартаментът е изтрит успешно.');
                     }
                     break;
+                    
+                case 'add_resident':
+                    $apartment_id = (int)($_POST['apartment_id'] ?? 0);
+                    $first_name = $_POST['first_name'] ?? '';
+                    $last_name = $_POST['last_name'] ?? '';
+                    $phone = $_POST['phone'] ?? '';
+                    $email = $_POST['email'] ?? '';
+                    $is_owner = isset($_POST['is_owner']) ? 1 : 0;
+                    $is_primary = isset($_POST['is_primary']) ? 1 : 0;
+                    $move_in_date = $_POST['move_in_date'] ?? date('Y-m-d');
+                    
+                    if ($apartment_id > 0 && !empty($first_name) && !empty($last_name)) {
+                        $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$apartment_id, $first_name, $last_name, $phone, $email, $is_owner, $is_primary, $move_in_date]);
+                        $success = showSuccess('Обитателят е добавен успешно.');
+                    } else {
+                        $error = showError('Моля, попълнете всички задължителни полета.');
+                    }
+                    break;
+                    
+                case 'edit_resident':
+                    $id = (int)($_POST['id'] ?? 0);
+                    $apartment_id = (int)($_POST['apartment_id'] ?? 0);
+                    $first_name = $_POST['first_name'] ?? '';
+                    $last_name = $_POST['last_name'] ?? '';
+                    $phone = $_POST['phone'] ?? '';
+                    $email = $_POST['email'] ?? '';
+                    $is_owner = isset($_POST['is_owner']) ? 1 : 0;
+                    $is_primary = isset($_POST['is_primary']) ? 1 : 0;
+                    $move_in_date = $_POST['move_in_date'] ?? '';
+                    $move_out_date = $_POST['move_out_date'] ?? '';
+                    
+                    if ($id > 0 && $apartment_id > 0 && !empty($first_name) && !empty($last_name)) {
+                        $stmt = $pdo->prepare("UPDATE residents SET apartment_id = ?, first_name = ?, last_name = ?, phone = ?, email = ?, is_owner = ?, is_primary = ?, move_in_date = ?, move_out_date = ? WHERE id = ?");
+                        $stmt->execute([$apartment_id, $first_name, $last_name, $phone, $email, $is_owner, $is_primary, $move_in_date, $move_out_date ?: null, $id]);
+                        $success = showSuccess('Обитателят е редактиран успешно.');
+                    } else {
+                        $error = showError('Моля, попълнете всички задължителни полета.');
+                    }
+                    break;
+                    
+                case 'delete_resident':
+                    $id = (int)($_POST['id'] ?? 0);
+                    if ($id > 0) {
+                        $stmt = $pdo->prepare("DELETE FROM residents WHERE id = ?");
+                        $stmt->execute([$id]);
+                        $success = showSuccess('Обитателят е изтрит успешно.');
+                    }
+                    break;
             }
         }
     }
@@ -142,22 +154,7 @@ try {
     
     // Вземане на апартаментите според избраната сграда
     $query = "
-        SELECT a.*, b.name as building_name,
-        (SELECT COUNT(*) FROM residents r WHERE r.apartment_id = a.id) as residents_count,
-        (SELECT JSON_ARRAYAGG(
-            JSON_OBJECT(
-                'id', r.id,
-                'first_name', r.first_name,
-                'last_name', r.last_name,
-                'phone', r.phone,
-                'email', r.email,
-                'is_owner', r.is_owner,
-                'is_primary', r.is_primary,
-                'move_in_date', r.move_in_date,
-                'move_out_date', r.move_out_date,
-                'notes', r.notes
-            )
-        ) FROM residents r WHERE r.apartment_id = a.id) as residents
+        SELECT a.*, b.name as building_name 
         FROM apartments a 
         JOIN buildings b ON a.building_id = b.id 
     ";
@@ -238,8 +235,10 @@ try {
                 <?php if ($apartment['owner_email']): ?>
                 <p><strong><i class="fas fa-envelope"></i> Имейл:</strong> <?php echo htmlspecialchars($apartment['owner_email']); ?></p>
                 <?php endif; ?>
-                <p><strong><i class="fas fa-users"></i> Брой обитатели:</strong> <?php echo $apartment['residents_count']; ?></p>
                 <div class="payment-actions">
+                    <button class="btn btn-info" onclick="showResidentsModal(<?php echo $apartment['id']; ?>)">
+                        <i class="fas fa-users"></i> Обитатели
+                    </button>
                     <button class="btn btn-warning" onclick="showEditModal(<?php echo htmlspecialchars(json_encode($apartment)); ?>)">
                         <i class="fas fa-edit"></i> Редактирай
                     </button>
@@ -289,80 +288,9 @@ try {
                             <input type="tel" class="form-control" id="owner_phone" name="owner_phone">
                         </div>
                         <div class="form-group">
-                            <label for="owner_email" class="form-label">Имейл:</label>
+                            <label for="owner_email" class="form-label">Имейл (по желание):</label>
                             <input type="email" class="form-control" id="owner_email" name="owner_email">
                         </div>
-                        
-                        <hr>
-                        <h5 class="mb-3"><i class="fas fa-users"></i> Обитатели</h5>
-                        <div id="residents-container">
-                            <div class="resident-entry mb-3 p-3 border rounded">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="form-label">Име:</label>
-                                            <input type="text" class="form-control" name="residents[0][first_name]" required>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="form-label">Фамилия:</label>
-                                            <input type="text" class="form-control" name="residents[0][last_name]" required>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row mt-2">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="form-label">Телефон:</label>
-                                            <input type="tel" class="form-control" name="residents[0][phone]">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="form-label">Имейл:</label>
-                                            <input type="email" class="form-control" name="residents[0][email]">
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row mt-2">
-                                    <div class="col-md-6">
-                                        <div class="form-check">
-                                            <input type="checkbox" class="form-check-input" name="residents[0][is_owner]" id="resident0_is_owner">
-                                            <label class="form-check-label" for="resident0_is_owner">Собственик</label>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-check">
-                                            <input type="checkbox" class="form-check-input" name="residents[0][is_primary]" id="resident0_is_primary">
-                                            <label class="form-check-label" for="resident0_is_primary">Основен обитател</label>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row mt-2">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="form-label">Дата на настаняване:</label>
-                                            <input type="date" class="form-control" name="residents[0][move_in_date]" required>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="form-label">Дата на напускане:</label>
-                                            <input type="date" class="form-control" name="residents[0][move_out_date]">
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="form-group mt-2">
-                                    <label class="form-label">Бележки:</label>
-                                    <textarea class="form-control" name="residents[0][notes]" rows="2"></textarea>
-                                </div>
-                            </div>
-                        </div>
-                        <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="addResidentEntry()">
-                            <i class="fas fa-plus"></i> Добави още обитател
-                        </button>
-                        
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
                             <button type="submit" class="btn btn-primary">Добави</button>
@@ -411,80 +339,135 @@ try {
                             <input type="tel" class="form-control" id="edit_owner_phone" name="owner_phone">
                         </div>
                         <div class="form-group">
-                            <label for="edit_owner_email" class="form-label">Имейл:</label>
+                            <label for="edit_owner_email" class="form-label">Имейл (по желание):</label>
                             <input type="email" class="form-control" id="edit_owner_email" name="owner_email">
                         </div>
-                        
-                        <hr>
-                        <h5 class="mb-3"><i class="fas fa-users"></i> Обитатели</h5>
-                        <div id="edit-residents-container">
-                            <div class="resident-entry mb-3 p-3 border rounded">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="form-label">Име:</label>
-                                            <input type="text" class="form-control" name="residents[0][first_name]" required>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="form-label">Фамилия:</label>
-                                            <input type="text" class="form-control" name="residents[0][last_name]" required>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row mt-2">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="form-label">Телефон:</label>
-                                            <input type="tel" class="form-control" name="residents[0][phone]">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="form-label">Имейл:</label>
-                                            <input type="email" class="form-control" name="residents[0][email]">
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row mt-2">
-                                    <div class="col-md-6">
-                                        <div class="form-check">
-                                            <input type="checkbox" class="form-check-input" name="residents[0][is_owner]" id="edit_resident0_is_owner">
-                                            <label class="form-check-label" for="edit_resident0_is_owner">Собственик</label>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-check">
-                                            <input type="checkbox" class="form-check-input" name="residents[0][is_primary]" id="edit_resident0_is_primary">
-                                            <label class="form-check-label" for="edit_resident0_is_primary">Основен обитател</label>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row mt-2">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="form-label">Дата на настаняване:</label>
-                                            <input type="date" class="form-control" name="residents[0][move_in_date]" required>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="form-label">Дата на напускане:</label>
-                                            <input type="date" class="form-control" name="residents[0][move_out_date]">
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="form-group mt-2">
-                                    <label class="form-label">Бележки:</label>
-                                    <textarea class="form-control" name="residents[0][notes]" rows="2"></textarea>
-                                </div>
-                            </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+                            <button type="submit" class="btn btn-primary">Запази</button>
                         </div>
-                        <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="addEditResidentEntry()">
-                            <i class="fas fa-plus"></i> Добави още обитател
-                        </button>
-                        
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модален прозорец за обитатели -->
+    <div id="residentsModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-users"></i> Управление на обитатели</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="residentsList" class="mb-4">
+                        <!-- Списък с обитатели ще се зарежда динамично -->
+                    </div>
+                    
+                    <button class="btn btn-primary mb-3" onclick="showAddResidentModal()">
+                        <i class="fas fa-plus"></i> Добави нов обитател
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модален прозорец за добавяне на обитател -->
+    <div id="addResidentModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-plus"></i> Добави нов обитател</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="add_resident">
+                        <input type="hidden" name="apartment_id" id="resident_apartment_id">
+                        <div class="form-group">
+                            <label for="first_name" class="form-label">Име:</label>
+                            <input type="text" class="form-control" id="first_name" name="first_name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="last_name" class="form-label">Фамилия:</label>
+                            <input type="text" class="form-control" id="last_name" name="last_name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone" class="form-label">Телефон:</label>
+                            <input type="tel" class="form-control" id="phone" name="phone">
+                        </div>
+                        <div class="form-group">
+                            <label for="email" class="form-label">Имейл:</label>
+                            <input type="email" class="form-control" id="email" name="email">
+                        </div>
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="is_owner" name="is_owner">
+                            <label class="form-check-label" for="is_owner">Собственик</label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="is_primary" name="is_primary">
+                            <label class="form-check-label" for="is_primary">Основен обитател</label>
+                        </div>
+                        <div class="form-group">
+                            <label for="move_in_date" class="form-label">Дата на настаняване:</label>
+                            <input type="date" class="form-control" id="move_in_date" name="move_in_date" value="<?php echo date('Y-m-d'); ?>" required>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+                            <button type="submit" class="btn btn-primary">Добави</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модален прозорец за редактиране на обитател -->
+    <div id="editResidentModal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-edit"></i> Редактирай обитател</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="edit_resident">
+                        <input type="hidden" name="id" id="edit_resident_id">
+                        <input type="hidden" name="apartment_id" id="edit_resident_apartment_id">
+                        <div class="form-group">
+                            <label for="edit_first_name" class="form-label">Име:</label>
+                            <input type="text" class="form-control" id="edit_first_name" name="first_name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_last_name" class="form-label">Фамилия:</label>
+                            <input type="text" class="form-control" id="edit_last_name" name="last_name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_phone" class="form-label">Телефон:</label>
+                            <input type="tel" class="form-control" id="edit_phone" name="phone">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_email" class="form-label">Имейл:</label>
+                            <input type="email" class="form-control" id="edit_email" name="email">
+                        </div>
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="edit_is_owner" name="is_owner">
+                            <label class="form-check-label" for="edit_is_owner">Собственик</label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="edit_is_primary" name="is_primary">
+                            <label class="form-check-label" for="edit_is_primary">Основен обитател</label>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_move_in_date" class="form-label">Дата на настаняване:</label>
+                            <input type="date" class="form-control" id="edit_move_in_date" name="move_in_date" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_move_out_date" class="form-label">Дата на напускане:</label>
+                            <input type="date" class="form-control" id="edit_move_out_date" name="move_out_date">
+                        </div>
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
                             <button type="submit" class="btn btn-primary">Запази</button>
@@ -513,87 +496,6 @@ try {
             document.getElementById('edit_owner_phone').value = apartment.owner_phone;
             document.getElementById('edit_owner_email').value = apartment.owner_email;
             
-            // Изчистване на контейнера за обитатели
-            const container = document.getElementById('edit-residents-container');
-            container.innerHTML = '';
-            editResidentCount = 0;
-            
-            // Добавяне на съществуващите обитатели
-            if (apartment.residents) {
-                const residents = JSON.parse(apartment.residents);
-                residents.forEach(resident => {
-                    const newEntry = document.createElement('div');
-                    newEntry.className = 'resident-entry mb-3 p-3 border rounded';
-                    newEntry.innerHTML = `
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Име:</label>
-                                    <input type="text" class="form-control" name="residents[${editResidentCount}][first_name]" value="${resident.first_name}" required>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Фамилия:</label>
-                                    <input type="text" class="form-control" name="residents[${editResidentCount}][last_name]" value="${resident.last_name}" required>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row mt-2">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Телефон:</label>
-                                    <input type="tel" class="form-control" name="residents[${editResidentCount}][phone]" value="${resident.phone || ''}">
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Имейл:</label>
-                                    <input type="email" class="form-control" name="residents[${editResidentCount}][email]" value="${resident.email || ''}">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row mt-2">
-                            <div class="col-md-6">
-                                <div class="form-check">
-                                    <input type="checkbox" class="form-check-input" name="residents[${editResidentCount}][is_owner]" id="edit_resident${editResidentCount}_is_owner" ${resident.is_owner == 1 ? 'checked' : ''}>
-                                    <label class="form-check-label" for="edit_resident${editResidentCount}_is_owner">Собственик</label>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-check">
-                                    <input type="checkbox" class="form-check-input" name="residents[${editResidentCount}][is_primary]" id="edit_resident${editResidentCount}_is_primary" ${resident.is_primary == 1 ? 'checked' : ''}>
-                                    <label class="form-check-label" for="edit_resident${editResidentCount}_is_primary">Основен обитател</label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row mt-2">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Дата на настаняване:</label>
-                                    <input type="date" class="form-control" name="residents[${editResidentCount}][move_in_date]" value="${resident.move_in_date}" required>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="form-label">Дата на напускане:</label>
-                                    <input type="date" class="form-control" name="residents[${editResidentCount}][move_out_date]" value="${resident.move_out_date || ''}">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group mt-2">
-                            <label class="form-label">Бележки:</label>
-                            <textarea class="form-control" name="residents[${editResidentCount}][notes]" rows="2">${resident.notes || ''}</textarea>
-                        </div>
-                        <button type="button" class="btn btn-outline-danger btn-sm mt-2" onclick="this.parentElement.remove()">
-                            <i class="fas fa-trash"></i> Премахни обитател
-                        </button>
-                    `;
-                    container.appendChild(newEntry);
-                    editResidentCount++;
-                });
-            }
-            
             var modal = new bootstrap.Modal(document.getElementById('editModal'));
             modal.show();
         }
@@ -611,153 +513,101 @@ try {
             }
         }
 
-        let residentCount = 1;
-        let editResidentCount = 1;
-
-        function addResidentEntry() {
-            const container = document.getElementById('residents-container');
-            const newEntry = document.createElement('div');
-            newEntry.className = 'resident-entry mb-3 p-3 border rounded';
-            newEntry.innerHTML = `
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Име:</label>
-                            <input type="text" class="form-control" name="residents[${residentCount}][first_name]" required>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Фамилия:</label>
-                            <input type="text" class="form-control" name="residents[${residentCount}][last_name]" required>
-                        </div>
-                    </div>
-                </div>
-                <div class="row mt-2">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Телефон:</label>
-                            <input type="tel" class="form-control" name="residents[${residentCount}][phone]">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Имейл:</label>
-                            <input type="email" class="form-control" name="residents[${residentCount}][email]">
-                        </div>
-                    </div>
-                </div>
-                <div class="row mt-2">
-                    <div class="col-md-6">
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" name="residents[${residentCount}][is_owner]" id="resident${residentCount}_is_owner">
-                            <label class="form-check-label" for="resident${residentCount}_is_owner">Собственик</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" name="residents[${residentCount}][is_primary]" id="resident${residentCount}_is_primary">
-                            <label class="form-check-label" for="resident${residentCount}_is_primary">Основен обитател</label>
-                        </div>
-                    </div>
-                </div>
-                <div class="row mt-2">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Дата на настаняване:</label>
-                            <input type="date" class="form-control" name="residents[${residentCount}][move_in_date]" required>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Дата на напускане:</label>
-                            <input type="date" class="form-control" name="residents[${residentCount}][move_out_date]">
-                        </div>
-                    </div>
-                </div>
-                <div class="form-group mt-2">
-                    <label class="form-label">Бележки:</label>
-                    <textarea class="form-control" name="residents[${residentCount}][notes]" rows="2"></textarea>
-                </div>
-                <button type="button" class="btn btn-outline-danger btn-sm mt-2" onclick="this.parentElement.remove()">
-                    <i class="fas fa-trash"></i> Премахни обитател
-                </button>
-            `;
-            container.appendChild(newEntry);
-            residentCount++;
+        function showResidentsModal(apartmentId) {
+            document.getElementById('resident_apartment_id').value = apartmentId;
+            loadResidents(apartmentId);
+            new bootstrap.Modal(document.getElementById('residentsModal')).show();
         }
 
-        function addEditResidentEntry() {
-            const container = document.getElementById('edit-residents-container');
-            const newEntry = document.createElement('div');
-            newEntry.className = 'resident-entry mb-3 p-3 border rounded';
-            newEntry.innerHTML = `
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Име:</label>
-                            <input type="text" class="form-control" name="residents[${editResidentCount}][first_name]" required>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Фамилия:</label>
-                            <input type="text" class="form-control" name="residents[${editResidentCount}][last_name]" required>
-                        </div>
-                    </div>
-                </div>
-                <div class="row mt-2">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Телефон:</label>
-                            <input type="tel" class="form-control" name="residents[${editResidentCount}][phone]">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Имейл:</label>
-                            <input type="email" class="form-control" name="residents[${editResidentCount}][email]">
-                        </div>
-                    </div>
-                </div>
-                <div class="row mt-2">
-                    <div class="col-md-6">
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" name="residents[${editResidentCount}][is_owner]" id="edit_resident${editResidentCount}_is_owner">
-                            <label class="form-check-label" for="edit_resident${editResidentCount}_is_owner">Собственик</label>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" name="residents[${editResidentCount}][is_primary]" id="edit_resident${editResidentCount}_is_primary">
-                            <label class="form-check-label" for="edit_resident${editResidentCount}_is_primary">Основен обитател</label>
-                        </div>
-                    </div>
-                </div>
-                <div class="row mt-2">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Дата на настаняване:</label>
-                            <input type="date" class="form-control" name="residents[${editResidentCount}][move_in_date]" required>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">Дата на напускане:</label>
-                            <input type="date" class="form-control" name="residents[${editResidentCount}][move_out_date]">
-                        </div>
-                    </div>
-                </div>
-                <div class="form-group mt-2">
-                    <label class="form-label">Бележки:</label>
-                    <textarea class="form-control" name="residents[${editResidentCount}][notes]" rows="2"></textarea>
-                </div>
-                <button type="button" class="btn btn-outline-danger btn-sm mt-2" onclick="this.parentElement.remove()">
-                    <i class="fas fa-trash"></i> Премахни обитател
-                </button>
-            `;
-            container.appendChild(newEntry);
-            editResidentCount++;
+        function showAddResidentModal() {
+            new bootstrap.Modal(document.getElementById('addResidentModal')).show();
+        }
+
+        function showEditResidentModal(resident) {
+            document.getElementById('edit_resident_id').value = resident.id;
+            document.getElementById('edit_resident_apartment_id').value = resident.apartment_id;
+            document.getElementById('edit_first_name').value = resident.first_name;
+            document.getElementById('edit_last_name').value = resident.last_name;
+            document.getElementById('edit_phone').value = resident.phone;
+            document.getElementById('edit_email').value = resident.email;
+            document.getElementById('edit_is_owner').checked = resident.is_owner == 1;
+            document.getElementById('edit_is_primary').checked = resident.is_primary == 1;
+            document.getElementById('edit_move_in_date').value = resident.move_in_date;
+            document.getElementById('edit_move_out_date').value = resident.move_out_date || '';
+            new bootstrap.Modal(document.getElementById('editResidentModal')).show();
+        }
+
+        function deleteResident(id) {
+            if (confirm('Сигурни ли сте, че искате да изтриете този обитател?')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.innerHTML = `
+                    <input type="hidden" name="action" value="delete_resident">
+                    <input type="hidden" name="id" value="${id}">
+                `;
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+
+        function loadResidents(apartmentId) {
+            fetch(`get_residents.php?apartment_id=${apartmentId}`)
+                .then(response => response.json())
+                .then(residents => {
+                    const residentsList = document.getElementById('residentsList');
+                    residentsList.innerHTML = '';
+                    
+                    if (residents.length === 0) {
+                        residentsList.innerHTML = '<div class="alert alert-info">Няма обитатели за този апартамент.</div>';
+                        return;
+                    }
+                    
+                    const table = document.createElement('table');
+                    table.className = 'table table-striped';
+                    table.innerHTML = `
+                        <thead>
+                            <tr>
+                                <th>Име</th>
+                                <th>Телефон</th>
+                                <th>Имейл</th>
+                                <th>Статус</th>
+                                <th>Настаняване</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    `;
+                    
+                    const tbody = table.querySelector('tbody');
+                    residents.forEach(resident => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${resident.first_name} ${resident.last_name}</td>
+                            <td>${resident.phone || '-'}</td>
+                            <td>${resident.email || '-'}</td>
+                            <td>
+                                ${resident.is_owner ? '<span class="badge bg-primary">Собственик</span> ' : ''}
+                                ${resident.is_primary ? '<span class="badge bg-success">Основен</span>' : ''}
+                            </td>
+                            <td>${resident.move_in_date}</td>
+                            <td>
+                                <button class="btn btn-warning btn-sm" onclick='showEditResidentModal(${JSON.stringify(resident)})'>
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteResident(${resident.id})">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                    
+                    residentsList.appendChild(table);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('residentsList').innerHTML = '<div class="alert alert-danger">Възникна грешка при зареждането на обитателите.</div>';
+                });
         }
     </script>
 </body>
