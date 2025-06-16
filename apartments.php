@@ -11,7 +11,6 @@ require_once 'includes/auth.php';
 require_once 'includes/building_selector.php';
 require_once 'includes/error_handler.php';
 require_once 'includes/navigation.php';
-require_once 'db.php';
 
 // Проверка дали потребителят е логнат
 if (!isLoggedIn()) {

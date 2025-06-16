@@ -1,5 +1,5 @@
 <?php
-require_once 'db.php';
+require_once 'includes/db.php';
 require_once 'auth.php';
 
 // Проверка дали потребителят е логнат
