@@ -152,41 +152,34 @@ try {
                     break;
                     
                 case 'delete_apartment':
-                    $id = (int)($_POST['id'] ?? 0);
-                    if ($id > 0) {
-                        try {
-                            $pdo->beginTransaction();
-                            
-                            // Първо проверяваме дали има свързани плащания
-                            $stmt = $pdo->prepare("SELECT COUNT(*) FROM payments WHERE apartment_id = ?");
-                            $stmt->execute([$id]);
-                            if ($stmt->fetchColumn() > 0) {
-                                throw new Exception('Не можете да изтриете имота, защото има свързани плащания.');
-                            }
-                            
-                            // Проверяваме за свързани такси
-                            $stmt = $pdo->prepare("SELECT COUNT(*) FROM fees WHERE apartment_id = ?");
-                            $stmt->execute([$id]);
-                            if ($stmt->fetchColumn() > 0) {
-                                throw new Exception('Не можете да изтриете имота, защото има свързани такси.');
-                            }
-                            
-                            // Изтриване на обитателите
-                            $stmt = $pdo->prepare("DELETE FROM residents WHERE apartment_id = ?");
-                            $stmt->execute([$id]);
-                            
-                            // Изтриване на имота
-                            $stmt = $pdo->prepare("DELETE FROM apartments WHERE id = ?");
-                            $stmt->execute([$id]);
-                            
-                            $pdo->commit();
-                            $success = showSuccess('Имотът е изтрит успешно.');
-                        } catch (Exception $e) {
-                            $pdo->rollBack();
-                            $error = showError('Грешка при изтриване на имота: ' . $e->getMessage());
+                    try {
+                        $id = $_POST['id'];
+                        
+                        // Първо проверяваме дали има свързани плащания
+                        $stmt = $pdo->prepare("SELECT COUNT(*) FROM payments WHERE apartment_id = ?");
+                        $stmt->execute([$id]);
+                        if ($stmt->fetchColumn() > 0) {
+                            throw new Exception('Не можете да изтриете имота, защото има свързани плащания.');
                         }
-                    } else {
-                        $error = showError('Невалиден идентификатор на имота.');
+                        
+                        // Проверяваме за свързани такси
+                        $stmt = $pdo->prepare("SELECT COUNT(*) FROM fees WHERE apartment_id = ?");
+                        $stmt->execute([$id]);
+                        if ($stmt->fetchColumn() > 0) {
+                            throw new Exception('Не можете да изтриете имота, защото има свързани такси.');
+                        }
+                        
+                        // Изтриване на обитателите
+                        $stmt = $pdo->prepare("DELETE FROM residents WHERE apartment_id = ?");
+                        $stmt->execute([$id]);
+                        
+                        // Изтриване на имота
+                        $stmt = $pdo->prepare("DELETE FROM apartments WHERE id = ?");
+                        $stmt->execute([$id]);
+                        
+                        $_SESSION['success'] = 'Имотът беше успешно изтрит.';
+                    } catch (Exception $e) {
+                        $_SESSION['error'] = 'Грешка при изтриване на имота: ' . $e->getMessage();
                     }
                     break;
                     
