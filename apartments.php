@@ -44,6 +44,24 @@ try {
                     $owner_email = $_POST['owner_email'] ?? '';
                     $owner_move_in_date = $_POST['owner_move_in_date'] ?? date('Y-m-d');
                     
+                    // Данни за допълнителни обитатели
+                    $additional_residents = [];
+                    if (isset($_POST['additional_residents']) && is_array($_POST['additional_residents'])) {
+                        foreach ($_POST['additional_residents'] as $resident) {
+                            if (!empty($resident['first_name']) && !empty($resident['last_name'])) {
+                                $additional_residents[] = [
+                                    'first_name' => $resident['first_name'],
+                                    'last_name' => $resident['last_name'],
+                                    'phone' => $resident['phone'] ?? '',
+                                    'email' => $resident['email'] ?? '',
+                                    'is_owner' => 0,
+                                    'is_primary' => 0,
+                                    'move_in_date' => $resident['move_in_date'] ?? date('Y-m-d')
+                                ];
+                            }
+                        }
+                    }
+                    
                     if ($building_id > 0 && !empty($number) && $floor >= 0 && $area > 0) {
                         $pdo->beginTransaction();
                         try {
@@ -56,6 +74,23 @@ try {
                             if (!empty($owner_first_name) && !empty($owner_last_name)) {
                                 $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date) VALUES (?, ?, ?, ?, ?, 1, 1, ?)");
                                 $stmt->execute([$apartment_id, $owner_first_name, $owner_last_name, $owner_phone, $owner_email, $owner_move_in_date]);
+                            }
+                            
+                            // Добавяне на допълнителни обитатели
+                            if (!empty($additional_residents)) {
+                                $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                                foreach ($additional_residents as $resident) {
+                                    $stmt->execute([
+                                        $apartment_id,
+                                        $resident['first_name'],
+                                        $resident['last_name'],
+                                        $resident['phone'],
+                                        $resident['email'],
+                                        $resident['is_owner'],
+                                        $resident['is_primary'],
+                                        $resident['move_in_date']
+                                    ]);
+                                }
                             }
                             
                             $pdo->commit();
@@ -306,6 +341,16 @@ try {
                             <input type="date" class="form-control" id="owner_move_in_date" name="owner_move_in_date" value="<?php echo date('Y-m-d'); ?>">
                         </div>
                         
+                        <hr>
+                        <h5 class="mb-3">Допълнителни обитатели</h5>
+                        <div id="additionalResidents">
+                            <!-- Тук ще се добавят форми за допълнителни обитатели -->
+                        </div>
+                        
+                        <button type="button" class="btn btn-info mb-3" onclick="addResidentForm()">
+                            <i class="fas fa-plus"></i> Добави обитател
+                        </button>
+                        
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
                             <button type="submit" class="btn btn-primary">Добави</button>
@@ -369,6 +414,16 @@ try {
                             <label for="edit_owner_move_in_date" class="form-label">Дата на настаняване:</label>
                             <input type="date" class="form-control" id="edit_owner_move_in_date" name="owner_move_in_date">
                         </div>
+                        
+                        <hr>
+                        <h5 class="mb-3">Допълнителни обитатели</h5>
+                        <div id="editAdditionalResidents">
+                            <!-- Тук ще се добавят форми за допълнителни обитатели -->
+                        </div>
+                        
+                        <button type="button" class="btn btn-info mb-3" onclick="addEditResidentForm()">
+                            <i class="fas fa-plus"></i> Добави обитател
+                        </button>
                         
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
@@ -521,7 +576,10 @@ try {
             document.getElementById('edit_area').value = apartment.area;
             document.getElementById('edit_people_count').value = apartment.people_count;
             
-            // Зареждане на данни за собственика от базата
+            // Изчистване на предишните допълнителни обитатели
+            document.getElementById('editAdditionalResidents').innerHTML = '';
+            
+            // Зареждане на данни за собственика и допълнителните обитатели от базата
             fetch(`get_residents.php?apartment_id=${apartment.id}`)
                 .then(response => response.json())
                 .then(residents => {
@@ -533,6 +591,58 @@ try {
                         document.getElementById('edit_owner_email').value = owner.email || '';
                         document.getElementById('edit_owner_move_in_date').value = owner.move_in_date;
                     }
+                    
+                    // Добавяне на форми за допълнителните обитатели
+                    residents.filter(r => r.is_owner === 0).forEach((resident, index) => {
+                        const container = document.getElementById('editAdditionalResidents');
+                        const residentForm = document.createElement('div');
+                        residentForm.className = 'resident-form mb-3 p-3 border rounded';
+                        residentForm.innerHTML = `
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="mb-0">Обитател ${index + 1}</h6>
+                                <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.parentElement.remove()">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Име:</label>
+                                        <input type="text" class="form-control" name="additional_residents[${index}][first_name]" value="${resident.first_name}" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Фамилия:</label>
+                                        <input type="text" class="form-control" name="additional_residents[${index}][last_name]" value="${resident.last_name}" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Телефон:</label>
+                                        <input type="tel" class="form-control" name="additional_residents[${index}][phone]" value="${resident.phone || ''}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Имейл:</label>
+                                        <input type="email" class="form-control" name="additional_residents[${index}][email]" value="${resident.email || ''}">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Дата на настаняване:</label>
+                                        <input type="date" class="form-control" name="additional_residents[${index}][move_in_date]" value="${resident.move_in_date}">
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        container.appendChild(residentForm);
+                    });
                 })
                 .catch(error => console.error('Error:', error));
             
@@ -648,6 +758,114 @@ try {
                     console.error('Error:', error);
                     document.getElementById('residentsList').innerHTML = '<div class="alert alert-danger">Възникна грешка при зареждането на обитателите.</div>';
                 });
+        }
+
+        function addResidentForm() {
+            const container = document.getElementById('additionalResidents');
+            const index = container.children.length;
+            
+            const residentForm = document.createElement('div');
+            residentForm.className = 'resident-form mb-3 p-3 border rounded';
+            residentForm.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">Обитател ${index + 1}</h6>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.parentElement.remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">Име:</label>
+                            <input type="text" class="form-control" name="additional_residents[${index}][first_name]" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">Фамилия:</label>
+                            <input type="text" class="form-control" name="additional_residents[${index}][last_name]" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">Телефон:</label>
+                            <input type="tel" class="form-control" name="additional_residents[${index}][phone]">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">Имейл:</label>
+                            <input type="email" class="form-control" name="additional_residents[${index}][email]">
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">Дата на настаняване:</label>
+                            <input type="date" class="form-control" name="additional_residents[${index}][move_in_date]" value="<?php echo date('Y-m-d'); ?>">
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(residentForm);
+        }
+        
+        function addEditResidentForm() {
+            const container = document.getElementById('editAdditionalResidents');
+            const index = container.children.length;
+            
+            const residentForm = document.createElement('div');
+            residentForm.className = 'resident-form mb-3 p-3 border rounded';
+            residentForm.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">Обитател ${index + 1}</h6>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.parentElement.remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">Име:</label>
+                            <input type="text" class="form-control" name="additional_residents[${index}][first_name]" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">Фамилия:</label>
+                            <input type="text" class="form-control" name="additional_residents[${index}][last_name]" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">Телефон:</label>
+                            <input type="tel" class="form-control" name="additional_residents[${index}][phone]">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">Имейл:</label>
+                            <input type="email" class="form-control" name="additional_residents[${index}][email]">
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">Дата на настаняване:</label>
+                            <input type="date" class="form-control" name="additional_residents[${index}][move_in_date]" value="<?php echo date('Y-m-d'); ?>">
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(residentForm);
         }
     </script>
 </body>
