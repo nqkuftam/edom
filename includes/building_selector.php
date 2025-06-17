@@ -46,7 +46,7 @@ function renderBuildingSelector() {
 
     $html = '<div class="building-selector mb-4">';
     $html .= '<form method="POST" action="set_building.php" class="d-flex align-items-center">';
-    $html .= '<select name="building_id" id="building_id" class="form-select me-2" style="width: auto;" onchange="this.form.submit()">';
+    $html .= '<select name="building_id" id="building_id" class="form-select me-2 custom-building-selector" onchange="this.form.submit()">';
     
     foreach ($buildings as $building) {
         $selected = ($currentBuilding && $currentBuilding['id'] == $building['id']) ? 'selected' : '';

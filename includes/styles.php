@@ -201,83 +201,80 @@
         background-color: var(--primary-color);
         color: var(--text-light);
         border-radius: var(--border-radius) var(--border-radius) 0 0;
+        border-bottom: none;
+        padding-bottom: 0;
     }
 
     .modal-title {
         font-weight: 600;
     }
 
+    .modal-body {
+        padding-top: 0;
+    }
+
+    .modal-footer {
+        border-top: none;
+        padding-top: 0;
+    }
+
     .building-info {
         background-color: white;
-        padding: 1rem;
         border-radius: var(--border-radius);
-        margin-bottom: 1rem;
         box-shadow: var(--box-shadow);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
     }
 
     .building-info h4 {
-        margin: 0 0 0.5rem 0;
+        margin: 0;
+        font-size: 1.2rem;
         color: var(--primary-color);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
     }
 
     .building-info p {
         margin: 0;
-        color: var(--secondary-color);
+        color: #666;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
     }
 
-    .table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 1rem;
+    .custom-building-selector {
+        width: auto !important; /* Презаписва inline style */
+        min-width: 150px; /* Минимална ширина */
+        max-width: 250px; /* Максимална ширина */
+        display: inline-block; /* За да не отива на нов ред */
+        border-radius: 25px; /* По-заоблени ъгли */
+        padding: 0.4rem 1.2rem; /* По-малък паддинг */
+        font-size: 0.9rem; /* По-малък шрифт */
+        border: 1px solid var(--accent-color); /* Цвят на рамката */
+        box-shadow: 0 2px 5px rgba(52, 152, 219, 0.2); /* Лека сянка */
         background-color: white;
-        border-radius: var(--border-radius);
-        overflow: hidden;
+        -webkit-appearance: none; /* Премахва стандартния стрелки */
+        -moz-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%233498db' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.75rem center;
+        background-size: 16px 12px;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
     }
 
-    .table th,
-    .table td {
-        padding: 0.75rem;
-        text-align: left;
-        border-bottom: 1px solid #ddd;
+    .custom-building-selector:focus {
+        border-color: #2980b9;
+        box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
+        outline: 0;
     }
 
-    .table th {
-        background-color: var(--primary-color);
-        color: var(--text-light);
-        font-weight: 600;
-    }
-
-    .table tr:hover {
-        background-color: #f8f9fa;
-    }
-
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1.5rem;
-        margin-bottom: 2rem;
-    }
-
-    .stat-card {
-        background-color: white;
-        padding: 1.5rem;
-        border-radius: var(--border-radius);
-        box-shadow: var(--box-shadow);
-        text-align: center;
-    }
-
-    .stat-card h3 {
-        margin: 0;
-        color: var(--primary-color);
-        font-size: 2rem;
-    }
-
-    .stat-card p {
-        margin: 0.5rem 0 0 0;
-        color: var(--secondary-color);
-        font-size: 1.1rem;
-    }
-
+    /* При нужда за адаптивност */
     @media (max-width: 768px) {
         .container {
             padding: 8px;
@@ -336,6 +333,15 @@
         }
         .modal-content {
             padding: 0.5rem;
+        }
+        .building-info {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .custom-building-selector {
+            width: 100% !important;
+            max-width: none;
+            margin-top: 0.5rem;
         }
     }
 
