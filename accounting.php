@@ -910,6 +910,10 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Global functions
+function showAddCashboxModal() {
+    var modal = new bootstrap.Modal(document.getElementById('addCashboxModal'));
+    modal.show();
+}
 function deleteCashbox(id) {
     if (confirm('Сигурни ли сте, че искате да изтриете тази каса?')) {
         const form = document.createElement('form');
