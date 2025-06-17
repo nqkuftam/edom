@@ -225,6 +225,7 @@
         padding: 1.5rem;
         margin-bottom: 1.5rem;
         display: flex;
+        flex-direction: column;
         align-items: center;
         flex-wrap: wrap;
         gap: 1rem;
