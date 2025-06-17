@@ -103,6 +103,24 @@ CREATE TABLE IF NOT EXISTS cashbox_transactions (
     FOREIGN KEY (cashbox_id) REFERENCES cashboxes(id) ON DELETE CASCADE
 );
 
+-- Таблица за история на обитателите
+CREATE TABLE IF NOT EXISTS resident_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    apartment_id INT NOT NULL,
+    resident_id INT NOT NULL,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    phone VARCHAR(20),
+    email VARCHAR(100),
+    is_owner TINYINT(1) DEFAULT 0,
+    is_primary TINYINT(1) DEFAULT 0,
+    move_in_date DATE NOT NULL,
+    move_out_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (apartment_id) REFERENCES apartments(id) ON DELETE CASCADE,
+    FOREIGN KEY (resident_id) REFERENCES residents(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Създаване на администраторски акаунт (парола: admin123)
 INSERT INTO users (username, password, email, role) VALUES 
 ('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@example.com', 'admin'); 

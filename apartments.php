@@ -192,7 +192,7 @@ try {
                         exit();
                     } catch (Exception $e) {
                         if ($pdo->inTransaction()) {
-                            $pdo->rollBack();
+                        $pdo->rollBack();
                         }
                         echo '<div class="alert alert-danger">Грешка при изтриване на имота: ' . $e->getMessage() . '</div>';
                     }
@@ -207,13 +207,28 @@ try {
                     $is_owner = isset($_POST['is_owner']) ? 1 : 0;
                     $is_primary = isset($_POST['is_primary']) ? 1 : 0;
                     $move_in_date = $_POST['move_in_date'] ?? date('Y-m-d');
+                    $move_out_date = $_POST['move_out_date'] ?? null;
                     
                     if ($apartment_id > 0 && !empty($first_name) && !empty($last_name)) {
-                        $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$apartment_id, $first_name, $last_name, $phone, $email, $is_owner, $is_primary, $move_in_date]);
-                        $success = showSuccess('Обитателят е добавен успешно.');
-                        header('Location: apartments.php');
-                        exit();
+                        $pdo->beginTransaction();
+                        try {
+                            // Добавяне на обитателя
+                            $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date, move_out_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            $stmt->execute([$apartment_id, $first_name, $last_name, $phone, $email, $is_owner, $is_primary, $move_in_date, $move_out_date]);
+                            $resident_id = $pdo->lastInsertId();
+                            
+                            // Добавяне в историята
+                            $stmt = $pdo->prepare("INSERT INTO resident_history (apartment_id, resident_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date, move_out_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            $stmt->execute([$apartment_id, $resident_id, $first_name, $last_name, $phone, $email, $is_owner, $is_primary, $move_in_date, $move_out_date]);
+                            
+                            $pdo->commit();
+                            $success = showSuccess('Обитателят е добавен успешно.');
+                            header('Location: apartments.php');
+                            exit();
+                        } catch (Exception $e) {
+                            $pdo->rollBack();
+                            $error = showError('Грешка при добавяне на обитателя: ' . $e->getMessage());
+                        }
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
                     }
@@ -229,14 +244,38 @@ try {
                     $is_owner = isset($_POST['is_owner']) ? 1 : 0;
                     $is_primary = isset($_POST['is_primary']) ? 1 : 0;
                     $move_in_date = $_POST['move_in_date'] ?? '';
-                    $move_out_date = $_POST['move_out_date'] ?? '';
+                    $move_out_date = $_POST['move_out_date'] ?? null;
                     
                     if ($id > 0 && $apartment_id > 0 && !empty($first_name) && !empty($last_name)) {
-                        $stmt = $pdo->prepare("UPDATE residents SET apartment_id = ?, first_name = ?, last_name = ?, phone = ?, email = ?, is_owner = ?, is_primary = ?, move_in_date = ?, move_out_date = ? WHERE id = ?");
-                        $stmt->execute([$apartment_id, $first_name, $last_name, $phone, $email, $is_owner, $is_primary, $move_in_date, $move_out_date ?: null, $id]);
-                        $success = showSuccess('Обитателят е редактиран успешно.');
-                        header('Location: apartments.php');
-                        exit();
+                        $pdo->beginTransaction();
+                        try {
+                            // Вземане на старите данни
+                            $stmt = $pdo->prepare("SELECT * FROM residents WHERE id = ?");
+                            $stmt->execute([$id]);
+                            $old_data = $stmt->fetch(PDO::FETCH_ASSOC);
+                            
+                            // Редактиране на обитателя
+                            $stmt = $pdo->prepare("UPDATE residents SET apartment_id = ?, first_name = ?, last_name = ?, phone = ?, email = ?, is_owner = ?, is_primary = ?, move_in_date = ?, move_out_date = ? WHERE id = ?");
+                            $stmt->execute([$apartment_id, $first_name, $last_name, $phone, $email, $is_owner, $is_primary, $move_in_date, $move_out_date, $id]);
+                            
+                            // Ако има промяна в данните, добавяме запис в историята
+                            if ($old_data['move_out_date'] !== $move_out_date || 
+                                $old_data['apartment_id'] !== $apartment_id ||
+                                $old_data['is_owner'] !== $is_owner ||
+                                $old_data['is_primary'] !== $is_primary) {
+                                
+                                $stmt = $pdo->prepare("INSERT INTO resident_history (apartment_id, resident_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date, move_out_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                                $stmt->execute([$apartment_id, $id, $first_name, $last_name, $phone, $email, $is_owner, $is_primary, $move_in_date, $move_out_date]);
+                            }
+                            
+                            $pdo->commit();
+                            $success = showSuccess('Обитателят е редактиран успешно.');
+                            header('Location: apartments.php');
+                            exit();
+                        } catch (Exception $e) {
+                            $pdo->rollBack();
+                            $error = showError('Грешка при редактиране на обитателя: ' . $e->getMessage());
+                        }
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
                     }
@@ -245,11 +284,41 @@ try {
                 case 'delete_resident':
                     $id = (int)($_POST['id'] ?? 0);
                     if ($id > 0) {
-                        $stmt = $pdo->prepare("DELETE FROM residents WHERE id = ?");
-                        $stmt->execute([$id]);
-                        $success = showSuccess('Обитателят е изтрит успешно.');
-                        header('Location: apartments.php');
-                        exit();
+                        $pdo->beginTransaction();
+                        try {
+                            // Вземане на данните преди изтриване
+                            $stmt = $pdo->prepare("SELECT * FROM residents WHERE id = ?");
+                            $stmt->execute([$id]);
+                            $resident_data = $stmt->fetch(PDO::FETCH_ASSOC);
+                            
+                            if ($resident_data) {
+                                // Добавяне в историята с дата на напускане
+                                $stmt = $pdo->prepare("INSERT INTO resident_history (apartment_id, resident_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date, move_out_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())");
+                                $stmt->execute([
+                                    $resident_data['apartment_id'],
+                                    $id,
+                                    $resident_data['first_name'],
+                                    $resident_data['last_name'],
+                                    $resident_data['phone'],
+                                    $resident_data['email'],
+                                    $resident_data['is_owner'],
+                                    $resident_data['is_primary'],
+                                    $resident_data['move_in_date']
+                                ]);
+                            }
+                            
+                            // Изтриване на обитателя
+                            $stmt = $pdo->prepare("DELETE FROM residents WHERE id = ?");
+                            $stmt->execute([$id]);
+                            
+                            $pdo->commit();
+                            $success = showSuccess('Обитателят е изтрит успешно.');
+                            header('Location: apartments.php');
+                            exit();
+                        } catch (Exception $e) {
+                            $pdo->rollBack();
+                            $error = showError('Грешка при изтриване на обитателя: ' . $e->getMessage());
+                        }
                     }
                     break;
             }
@@ -560,6 +629,10 @@ try {
                             <label for="move_in_date" class="form-label">Дата на настаняване:</label>
                             <input type="date" class="form-control" id="move_in_date" name="move_in_date" value="<?php echo date('Y-m-d'); ?>" required>
                         </div>
+                        <div class="form-group">
+                            <label for="move_out_date" class="form-label">Дата на напускане:</label>
+                            <input type="date" class="form-control" id="move_out_date" name="move_out_date">
+                        </div>
                         <div class="text-end">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
                             <button type="submit" class="btn btn-primary">Добави</button>
@@ -817,6 +890,7 @@ try {
                                 <th>Имейл</th>
                                 <th>Статус</th>
                                 <th>Настаняване</th>
+                                <th>Напускане</th>
                                 <th>Действия</th>
                             </tr>
                         </thead>
@@ -835,6 +909,7 @@ try {
                                 ${resident.is_primary ? '<span class="badge bg-success">Основен</span>' : ''}
                             </td>
                             <td>${resident.move_in_date}</td>
+                            <td>${resident.move_out_date || '-'}</td>
                             <td>
                                 <button class="btn btn-warning btn-sm" onclick='showEditResidentModal(${JSON.stringify(resident)})'>
                                     <i class="fas fa-edit"></i>
@@ -1081,7 +1156,7 @@ try {
                     });
                 });
             }
-
+            
             // Обработка на формата за редактиране
             const editForm = document.getElementById('editForm');
             if (editForm) {
