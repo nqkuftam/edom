@@ -315,9 +315,7 @@ try {
         <div class="building-info">
             <h4 class="d-flex align-items-center">
                 <i class="fas fa-building me-2"></i> Текуща сграда: 
-                <div class="ms-2">
-                    <?php echo renderBuildingSelector(); ?>
-                </div>
+                <?php echo renderBuildingSelector(); ?>
             </h4>
             <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
         </div>

@@ -44,8 +44,7 @@ function renderBuildingSelector() {
         $currentBuilding = getCurrentBuilding();
     }
 
-    $html = '<div class="building-selector mb-4">';
-    $html .= '<form method="POST" action="set_building.php" class="d-flex align-items-center">';
+    $html = '<form method="POST" action="set_building.php" class="d-flex align-items-center">';
     $html .= '<select name="building_id" id="building_id" class="form-select me-2 custom-building-selector" onchange="this.form.submit()">';
     
     foreach ($buildings as $building) {
@@ -62,7 +61,6 @@ function renderBuildingSelector() {
     $html .= '</select>';
     // Премахнат бутон 'Избери'
     $html .= '</form>';
-    $html .= '</div>';
     
     return $html;
 }
