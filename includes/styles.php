@@ -253,10 +253,11 @@
         width: auto !important; /* Презаписва inline style */
         min-width: 150px; /* Минимална ширина */
         max-width: 250px; /* Максимална ширина */
-        display: inline-block; /* За да не отива на нов ред */
+        /* display: inline-block; */ /* Премахнато, flexbox ще се грижи за това */
         border-radius: 25px; /* По-заоблени ъгли */
         padding: 0.4rem 1.2rem; /* По-малък паддинг */
         font-size: 0.9rem; /* По-малък шрифт */
+        margin-top: 2px; /* Добавено за по-добро вертикално подравняване */
         border: 1px solid var(--accent-color); /* Цвят на рамката */
         box-shadow: 0 2px 5px rgba(52, 152, 219, 0.2); /* Лека сянка */
         background-color: white;
