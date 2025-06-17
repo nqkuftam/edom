@@ -130,7 +130,7 @@ require_once 'includes/styles.php';
     </div>
 
     <div class="container">
-        <?php if ($currentBuilding): ?>
+    <?php if ($currentBuilding): ?>
         <div class="building-info">
             <h4 class="d-flex align-items-center">
                 <i class="fas fa-building me-2"></i> Текуща сграда: 

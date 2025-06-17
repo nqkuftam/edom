@@ -373,14 +373,14 @@ require_once 'includes/styles.php';
 <div class="container-fluid mt-4">
     <h2 class="mb-4"><i class="fas fa-coins"></i> Счетоводство</h2>
     <?php if ($currentBuilding): ?>
-    <div class="building-info">
-        <h4 class="d-flex align-items-center">
-            <i class="fas fa-building me-2"></i> Текуща сграда: 
-            <?php echo renderBuildingSelector(); ?>
-        </h4>
-        <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
-    </div>
-    <?php endif; ?>
+        <div class="building-info">
+            <h4 class="d-flex align-items-center">
+                <i class="fas fa-building me-2"></i> Текуща сграда: 
+                <?php echo renderBuildingSelector(); ?>
+            </h4>
+            <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
+        </div>
+        <?php endif; ?>
     <?php if ($error): ?>
         <div class="alert alert-danger"><?php echo $error; ?></div>
     <?php endif; ?>
