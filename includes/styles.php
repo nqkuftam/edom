@@ -241,6 +241,13 @@
         text-align: center;
     }
 
+    .building-info h4 form {
+        display: inline-flex !important;
+        margin: 0;
+        padding: 0;
+        align-items: center;
+    }
+
     .building-info p {
         margin: 0;
         color: #666;
