@@ -1120,17 +1120,13 @@ if (payApartmentPaymentMethod) {
 
 // Активиране на таб 'Задължения' само при първоначално зареждане, ако има ?tab=debts или ако има грешка
 window.addEventListener('DOMContentLoaded', function() {
-  function activateDebtsTab() {
-    var debtsTab = document.getElementById('debts-tab');
-    if (debtsTab) debtsTab.click();
+  if (window.location.search.indexOf('tab=debts') !== -1 || <?php echo $error ? 'true' : 'false'; ?>) {
+    var tabTrigger = document.querySelector('#debts-tab');
+    if (tabTrigger && window.bootstrap && bootstrap.Tab) {
+      var tab = new bootstrap.Tab(tabTrigger);
+      tab.show();
+    }
   }
-  if (window.location.search.indexOf('tab=debts') !== -1) {
-    activateDebtsTab();
-  }
-  // PHP ще инжектира това само ако има грешка
-  <?php if ($error): ?>
-    activateDebtsTab();
-  <?php endif; ?>
 });
 
 // Добавям нова функция за обновяване на списъка с апартаменти
