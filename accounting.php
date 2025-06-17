@@ -1118,8 +1118,8 @@ if (payApartmentPaymentMethod) {
   });
 }
 
-// Активиране на таб 'Задължения' ако има ?tab=debts или ако има грешка
-(function() {
+// Активиране на таб 'Задължения' само при първоначално зареждане, ако има ?tab=debts или ако има грешка
+window.addEventListener('DOMContentLoaded', function() {
   function activateDebtsTab() {
     var debtsTab = document.getElementById('debts-tab');
     if (debtsTab) debtsTab.click();
@@ -1127,10 +1127,11 @@ if (payApartmentPaymentMethod) {
   if (window.location.search.indexOf('tab=debts') !== -1) {
     activateDebtsTab();
   }
+  // PHP ще инжектира това само ако има грешка
   <?php if ($error): ?>
     activateDebtsTab();
   <?php endif; ?>
-})();
+});
 
 // Добавям нова функция за обновяване на списъка с апартаменти
 function updateApartmentsList() {
