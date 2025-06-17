@@ -891,8 +891,25 @@ require_once 'includes/styles.php';
       </div>
     </div>
 </div>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+// Initialize when document is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
+    // Initialize popovers
+    var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+    var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+        return new bootstrap.Popover(popoverTriggerEl);
+    });
+});
+
+// Global functions
 function deleteCashbox(id) {
     if (confirm('Сигурни ли сте, че искате да изтриете тази каса?')) {
         const form = document.createElement('form');
@@ -902,9 +919,22 @@ function deleteCashbox(id) {
         form.submit();
     }
 }
-const unpaidFees = <?php echo json_encode($unpaid_fees); ?>;
+const unpaidFees = <?php echo isset($unpaid_fees) ? json_encode($unpaid_fees) : '[]'; ?>;
 function showAddModal() {
     var modal = new bootstrap.Modal(document.getElementById('addModal'));
+    modal.show();
+}
+
+function showAddFeeModal() {
+    var modal = new bootstrap.Modal(document.getElementById('addFeeModal'));
+    modal.show();
+}
+
+function showPayModal(apartmentId, apartmentNumber, amount) {
+    document.getElementById('pay_apartment_id').value = apartmentId;
+    document.getElementById('pay_apartment_number').textContent = apartmentNumber;
+    document.getElementById('pay_amount').value = amount;
+    var modal = new bootstrap.Modal(document.getElementById('payModal'));
     modal.show();
 }
 function updateUnpaidFees() {
