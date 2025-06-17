@@ -131,7 +131,7 @@ require_once 'includes/styles.php';
 
     <div class="container">
     <?php if ($currentBuilding): ?>
-        <div class="building-info">
+        <div class="building-info" style="max-width:600px;margin-left:auto;margin-right:auto;">
             <h4 class="d-flex align-items-center">
                 <i class="fas fa-building me-2"></i> Текуща сграда: 
                 <?php echo renderBuildingSelector(); ?>
