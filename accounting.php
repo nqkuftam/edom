@@ -380,7 +380,7 @@ require_once 'includes/styles.php';
             </h4>
             <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
         </div>
-        <?php endif; ?>
+    <?php endif; ?>
     <?php if ($error): ?>
         <div class="alert alert-danger"><?php echo $error; ?></div>
     <?php endif; ?>
