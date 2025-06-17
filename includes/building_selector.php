@@ -50,11 +50,10 @@ function renderBuildingSelector() {
     foreach ($buildings as $building) {
         $selected = ($currentBuilding && $currentBuilding['id'] == $building['id']) ? 'selected' : '';
         $html .= sprintf(
-            '<option value="%d" %s>%s - %s</option>',
+            '<option value="%d" %s>%s</option>',
             $building['id'],
             $selected,
-            htmlspecialchars($building['name']),
-            htmlspecialchars($building['address'])
+            htmlspecialchars($building['name'])
         );
     }
     

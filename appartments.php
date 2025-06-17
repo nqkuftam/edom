@@ -309,11 +309,12 @@ try {
     <div class="container">
         <a href="index.php" class="btn btn-secondary mb-3"><i class="fas fa-arrow-left"></i> Назад към таблото</a>
         
-        <?php echo renderBuildingSelector(); ?>
-        
         <?php if ($currentBuilding): ?>
         <div class="building-info">
-            <h4><i class="fas fa-building"></i> Текуща сграда: <?php echo htmlspecialchars($currentBuilding['name']); ?></h4>
+            <h4 class="d-flex align-items-center">
+                <i class="fas fa-building me-2"></i> Текуща сграда: 
+                <?php echo renderBuildingSelector(); ?>
+            </h4>
             <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
         </div>
         <?php endif; ?>

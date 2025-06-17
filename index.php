@@ -130,11 +130,15 @@ require_once 'includes/styles.php';
     </div>
 
     <div class="container">
-        <div class="row mb-3">
-            <div class="col-12">
+        <?php if ($currentBuilding): ?>
+        <div class="building-info">
+            <h4 class="d-flex align-items-center">
+                <i class="fas fa-building me-2"></i> Текуща сграда:
                 <?php echo renderBuildingSelector(); ?>
-            </div>
+            </h4>
+            <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
         </div>
+        <?php endif; ?>
         <div class="row">
             <!-- Лява колона -->
             <div class="col-md-4 col-lg-3 mb-4">
