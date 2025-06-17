@@ -891,47 +891,99 @@ require_once 'includes/styles.php';
       </div>
     </div>
 </div>
+
+<!-- Move scripts to the end of body -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
 <script>
+// Check if Bootstrap is loaded
+if (typeof bootstrap === 'undefined') {
+    console.error('Bootstrap is not loaded. Please check the Bootstrap JavaScript file.');
+    alert('Грешка при зареждане на страницата. Моля, опреснете страницата.');
+}
+
 // Initialize when document is ready
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize tooltips
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
+    try {
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
 
-    // Initialize popovers
-    var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
-    var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
-        return new bootstrap.Popover(popoverTriggerEl);
-    });
+        // Initialize popovers
+        var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+        var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+            return new bootstrap.Popover(popoverTriggerEl);
+        });
+        
+        console.log('Bootstrap components initialized successfully');
+    } catch (error) {
+        console.error('Error initializing Bootstrap components:', error);
+    }
 });
 
 // Global functions
 function showAddCashboxModal() {
-    var modal = new bootstrap.Modal(document.getElementById('addCashboxModal'));
-    modal.show();
-}
-function deleteCashbox(id) {
-    if (confirm('Сигурни ли сте, че искате да изтриете тази каса?')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.innerHTML = '<input type="hidden" name="action" value="delete_cashbox"><input type="hidden" name="cashbox_id" value="' + id + '">';
-        document.body.appendChild(form);
-        form.submit();
+    try {
+        var modalElement = document.getElementById('addCashboxModal');
+        if (!modalElement) {
+            console.error('Modal element not found: addCashboxModal');
+            return;
+        }
+        var modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } catch (error) {
+        console.error('Error showing add cashbox modal:', error);
+        alert('Грешка при отваряне на модалния прозорец. Моля, опитайте отново.');
     }
 }
+
+function deleteCashbox(id) {
+    if (confirm('Сигурни ли сте, че искате да изтриете тази каса?')) {
+        try {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.innerHTML = '<input type="hidden" name="action" value="delete_cashbox"><input type="hidden" name="cashbox_id" value="' + id + '">';
+            document.body.appendChild(form);
+            form.submit();
+        } catch (error) {
+            console.error('Error deleting cashbox:', error);
+            alert('Грешка при изтриване на касата. Моля, опитайте отново.');
+        }
+    }
+}
+
 const unpaidFees = <?php echo isset($unpaid_fees) ? json_encode($unpaid_fees) : '[]'; ?>;
+
 function showAddModal() {
-    var modal = new bootstrap.Modal(document.getElementById('addModal'));
-    modal.show();
+    try {
+        var modalElement = document.getElementById('addModal');
+        if (!modalElement) {
+            console.error('Modal element not found: addModal');
+            return;
+        }
+        var modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } catch (error) {
+        console.error('Error showing add modal:', error);
+        alert('Грешка при отваряне на модалния прозорец. Моля, опитайте отново.');
+    }
 }
 
 function showAddFeeModal() {
-    var modal = new bootstrap.Modal(document.getElementById('addFeeModal'));
-    modal.show();
+    try {
+        var modalElement = document.getElementById('addFeeModal');
+        if (!modalElement) {
+            console.error('Modal element not found: addFeeModal');
+            return;
+        }
+        var modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } catch (error) {
+        console.error('Error showing add fee modal:', error);
+        alert('Грешка при отваряне на модалния прозорец. Моля, опитайте отново.');
+    }
 }
 
 function showPayModal(apartmentId, apartmentNumber, amount) {
