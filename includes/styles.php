@@ -226,7 +226,7 @@
         margin-bottom: 1.5rem;
         display: flex;
         flex-direction: column;
-        align-items: center;
+        align-items: flex-start;
         flex-wrap: wrap;
         gap: 1rem;
     }
@@ -238,6 +238,7 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        text-align: center;
     }
 
     .building-info p {
