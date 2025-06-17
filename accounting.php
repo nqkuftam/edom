@@ -362,8 +362,39 @@ require_once 'includes/styles.php';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Счетоводство | Електронен Домоуправител</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap 5.1.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
+    <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Add any custom styles here */
+        .header {
+            background-color: #f8f9fa;
+            padding: 1rem 0;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 1.8rem;
+        }
+        .nav-tabs {
+            margin-bottom: 1.5rem;
+        }
+        .card {
+            margin-bottom: 1.5rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+        .card-header {
+            font-weight: 600;
+        }
+        .table {
+            font-size: 0.95rem;
+        }
+        .btn-sm {
+            font-size: 0.85rem;
+            padding: 0.25rem 0.5rem;
+        }
 </head>
 <body>
 <div class="header">
@@ -892,28 +923,34 @@ require_once 'includes/styles.php';
     </div>
 </div>
 
-<!-- Move scripts to the end of body -->
+<!-- JavaScript Libraries -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
+<!-- Bootstrap 5.1.3 JS Bundle with Popper -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" 
+        integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" 
+        crossorigin="anonymous">
+</script>
+
+<!-- Custom Scripts -->
 <script>
 // Check if Bootstrap is loaded
 if (typeof bootstrap === 'undefined') {
-    console.error('Bootstrap is not loaded. Please check the Bootstrap JavaScript file.');
-    alert('Грешка при зареждане на страницата. Моля, опреснете страницата.');
+    console.error('Bootstrap is not loaded. The page may not function correctly.');
+    alert('Грешка при зареждане на страницата. Моля, проверете връзката си с интернет и опреснете страницата.');
 }
 
-// Initialize when document is ready
-document.addEventListener('DOMContentLoaded', function() {
+// Function to initialize Bootstrap components
+function initializeBootstrapComponents() {
     try {
         // Initialize tooltips
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        tooltipTriggerList.forEach(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl);
         });
 
         // Initialize popovers
         var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
-        var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+        popoverTriggerList.forEach(function (popoverTriggerEl) {
             return new bootstrap.Popover(popoverTriggerEl);
         });
         
@@ -921,7 +958,45 @@ document.addEventListener('DOMContentLoaded', function() {
     } catch (error) {
         console.error('Error initializing Bootstrap components:', error);
     }
+}
+
+// Initialize when document is ready
+document.addEventListener('DOMContentLoaded', function() {
+    initializeBootstrapComponents();
+    
+    // Initialize tabs if they exist
+    var tabEls = document.querySelectorAll('button[data-bs-toggle="tab"]');
+    tabEls.forEach(function(tabEl) {
+        tabEl.addEventListener('click', function (event) {
+            event.preventDefault();
+            var tab = new bootstrap.Tab(tabEl);
+            tab.show();
+        });
+    });
+    
+    console.log('Document ready');
 });
+
+// Global functions
+function initializeBootstrapComponents() {
+    try {
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+
+        // Initialize popovers
+        var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+        popoverTriggerList.forEach(function (popoverTriggerEl) {
+            return new bootstrap.Popover(popoverTriggerEl);
+        });
+        
+        console.log('Bootstrap components initialized successfully');
+    } catch (error) {
+        console.error('Error initializing Bootstrap components:', error);
+    }
+}
 
 // Global functions
 function showAddCashboxModal() {
@@ -931,7 +1006,7 @@ function showAddCashboxModal() {
             console.error('Modal element not found: addCashboxModal');
             return;
         }
-        var modal = new bootstrap.Modal(modalElement);
+        var modal = bootstrap.Modal.getOrCreateInstance(modalElement);
         modal.show();
     } catch (error) {
         console.error('Error showing add cashbox modal:', error);
@@ -963,7 +1038,7 @@ function showAddModal() {
             console.error('Modal element not found: addModal');
             return;
         }
-        var modal = new bootstrap.Modal(modalElement);
+        var modal = bootstrap.Modal.getOrCreateInstance(modalElement);
         modal.show();
     } catch (error) {
         console.error('Error showing add modal:', error);
@@ -978,7 +1053,7 @@ function showAddFeeModal() {
             console.error('Modal element not found: addFeeModal');
             return;
         }
-        var modal = new bootstrap.Modal(modalElement);
+        var modal = bootstrap.Modal.getOrCreateInstance(modalElement);
         modal.show();
     } catch (error) {
         console.error('Error showing add fee modal:', error);
@@ -987,11 +1062,21 @@ function showAddFeeModal() {
 }
 
 function showPayModal(apartmentId, apartmentNumber, amount) {
-    document.getElementById('pay_apartment_id').value = apartmentId;
-    document.getElementById('pay_apartment_number').textContent = apartmentNumber;
-    document.getElementById('pay_amount').value = amount;
-    var modal = new bootstrap.Modal(document.getElementById('payModal'));
-    modal.show();
+    try {
+        document.getElementById('pay_apartment_id').value = apartmentId;
+        document.getElementById('pay_apartment_number').textContent = apartmentNumber;
+        document.getElementById('pay_amount').value = amount;
+        var modalElement = document.getElementById('payModal');
+        if (!modalElement) {
+            console.error('Modal element not found: payModal');
+            return;
+        }
+        var modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+        modal.show();
+    } catch (error) {
+        console.error('Error showing pay modal:', error);
+        alert('Грешка при отваряне на модалния прозорец. Моля, опитайте отново.');
+    }
 }
 function updateUnpaidFees() {
     const apartmentId = document.getElementById('apartment_id').value;
