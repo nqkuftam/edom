@@ -53,6 +53,7 @@ try {
                     $owner_name = $_POST['owner_name'] ?? '';
                     $owner_phone = $_POST['owner_phone'] ?? '';
                     $owner_email = $_POST['owner_email'] ?? '';
+                    $move_in_date = $_POST['move_in_date'] ?? date('Y-m-d');
                     
                     // Валидация според типа на имота
                     $isValid = true;
@@ -76,8 +77,8 @@ try {
                                 $owner_first_name = $owner_parts[0];
                                 $owner_last_name = isset($owner_parts[1]) ? $owner_parts[1] : '';
                                 
-                                $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date) VALUES (?, ?, ?, ?, ?, 1, 1, CURDATE())");
-                                $stmt->execute([$apartment_id, $owner_first_name, $owner_last_name, $owner_phone, $owner_email]);
+                                $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date) VALUES (?, ?, ?, ?, ?, 1, 1, ?)");
+                                $stmt->execute([$apartment_id, $owner_first_name, $owner_last_name, $owner_phone, $owner_email, $move_in_date]);
                             }
                             
                             $pdo->commit();
@@ -104,6 +105,7 @@ try {
                     $owner_name = $_POST['owner_name'] ?? '';
                     $owner_phone = $_POST['owner_phone'] ?? '';
                     $owner_email = $_POST['owner_email'] ?? '';
+                    $move_in_date = $_POST['move_in_date'] ?? date('Y-m-d');
                     
                     // Валидация според типа на имота
                     $isValid = true;
@@ -137,8 +139,8 @@ try {
                                     $stmt->execute([$owner_first_name, $owner_last_name, $owner_phone, $owner_email, $owner['id']]);
                                 } else {
                                     // Добавяне на нов собственик
-                                    $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date) VALUES (?, ?, ?, ?, ?, 1, 1, CURDATE())");
-                                    $stmt->execute([$id, $owner_first_name, $owner_last_name, $owner_phone, $owner_email]);
+                                    $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date) VALUES (?, ?, ?, ?, ?, 1, 1, ?)");
+                                    $stmt->execute([$id, $owner_first_name, $owner_last_name, $owner_phone, $owner_email, $move_in_date]);
                                 }
                             }
                             
@@ -418,6 +420,11 @@ try {
                         <div class="form-group">
                             <label for="owner_email" class="form-label">Имейл:</label>
                             <input type="email" class="form-control" id="owner_email" name="owner_email">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="move_in_date" class="form-label">Дата на настаняване:</label>
+                            <input type="date" class="form-control" id="move_in_date" name="move_in_date" required>
                         </div>
                         
                         <hr>
