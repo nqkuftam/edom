@@ -143,7 +143,7 @@ require_once 'includes/styles.php';
                         <h5 class="card-title mb-3"><i class="fas fa-cog"></i> Управление</h5>
                         <hr>
                         <ul class="list-unstyled mb-0">
-                            <li class="mb-2"><i class="fas fa-building"></i> <a href="apartments.php">Имоти</a></li>
+                            <li class="mb-2"><i class="fas fa-building"></i> <a href="properties.php">Имоти</a></li>
                             <li><i class="fas fa-euro-sign"></i> <a href="accounting.php">Счетоводство</a></li>
                         </ul>
                     </div>

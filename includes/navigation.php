@@ -3,7 +3,7 @@ function renderNavigation($currentPage = '') {
     $pages = [
         'index' => ['title' => 'Табло', 'url' => 'index.php'],
         'buildings' => ['title' => 'Сгради', 'url' => 'buildings.php'],
-        'apartments' => ['title' => 'Апартаменти', 'url' => 'apartments.php'],
+        'properties' => ['title' => 'Имоти', 'url' => 'properties.php'],
         'residents' => ['title' => 'Обитатели', 'url' => 'residents.php'],
         'fees' => ['title' => 'Такси', 'url' => 'fees.php'],
         'payments' => ['title' => 'Плащания', 'url' => 'payments.php'],

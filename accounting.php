@@ -80,14 +80,21 @@ try {
         FOREIGN KEY (apartment_id) REFERENCES apartments(id) ON DELETE CASCADE
     )");
 
-    // Взимане на всички апартаменти с техните баланси и името на сградата
-    $apartments = $pdo->query("
-        SELECT a.*, b.name AS building_name, ab.balance
-        FROM apartments a
-        JOIN buildings b ON a.building_id = b.id
-        LEFT JOIN apartment_balances ab ON a.id = ab.apartment_id
-        ORDER BY b.name, a.number
-    ")->fetchAll(PDO::FETCH_ASSOC);
+    // Взимане на апартаментите само за текущата сграда
+    if ($currentBuilding) {
+        $stmt = $pdo->prepare("
+            SELECT a.*, b.name AS building_name, ab.balance
+            FROM apartments a
+            JOIN buildings b ON a.building_id = b.id
+            LEFT JOIN apartment_balances ab ON a.id = ab.apartment_id
+            WHERE a.building_id = ?
+            ORDER BY a.number
+        ");
+        $stmt->execute([$currentBuilding['id']]);
+        $apartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $apartments = [];
+    }
 
     // Ако някой апартамент няма запис в балансите, създаваме такъв
     foreach ($apartments as $apartment) {
@@ -1017,7 +1024,7 @@ if (payPaymentMethod) {
 const apartmentBalances = <?php echo json_encode(array_column($apartments, 'balance', 'id')); ?>;
 // Показване на модал за плащане на апартамент
 Array.from(document.querySelectorAll('.pay-apartment-btn')).forEach(function(btn) {
-  btn.addEventListener('click', function() {
+  btn.addEventListener.call(this, function() {
     var apartment = JSON.parse(this.getAttribute('data-apartment'));
     var aid = apartment.id;
     document.getElementById('pay_apartment_modal_id').value = aid;
@@ -1084,6 +1091,41 @@ if (payApartmentPaymentMethod) {
     activateDebtsTab();
   <?php endif; ?>
 })();
+
+// Добавям нова функция за обновяване на списъка с апартаменти
+function updateApartmentsList() {
+    const buildingId = document.querySelector('select[name="building_id"]').value;
+    if (!buildingId) {
+        document.getElementById('distribution_table').querySelector('tbody').innerHTML = '';
+        return;
+    }
+
+    fetch(`get_apartments.php?building_id=${buildingId}`)
+        .then(response => response.json())
+        .then(apartments => {
+            const tbody = document.getElementById('distribution_table').querySelector('tbody');
+            tbody.innerHTML = '';
+            
+            apartments.forEach(apartment => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="text-center">
+                        <input type="checkbox" class="charge-checkbox" name="charge[${apartment.id}]" value="1" checked onchange="toggleChargeRow(this)">
+                    </td>
+                    <td>${apartment.building_name} - ${apartment.number}</td>
+                    <td><input type="number" class="form-control amount-input" name="amounts[${apartment.id}]" step="0.01" min="0" value="0"></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Преизчисляване на сумите
+            distributeAmounts();
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+// Добавяме слушател за промяна на сградата
+document.querySelector('select[name="building_id"]').addEventListener('change', updateApartmentsList);
 </script>
 </body>
 </html> 
