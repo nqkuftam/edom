@@ -303,18 +303,17 @@ try {
         <div class="header-content">
             <h1>Имоти</h1>
             <?php echo renderNavigation('properties'); ?>
-            <?php echo renderBuildingSelector(); ?>
         </div>
     </div>
+
     <div class="container-fluid mt-4">
-        <a href="index.php" class="btn btn-secondary mb-3"><i class="fas fa-arrow-left"></i> Назад към таблото</a>
-        
-        <?php if ($currentBuilding): ?>
-        <div class="building-info">
-            <h4><i class="fas fa-building"></i> Текуща сграда: <?php echo htmlspecialchars($currentBuilding['name']); ?></h4>
+        <div class="building-info mb-4">
+            <h4><i class="fas fa-building"></i> Текуща сграда: <?php echo renderBuildingSelector(); ?></h4>
+            <?php if ($currentBuilding): ?>
             <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
+            <?php endif; ?>
         </div>
-        <?php endif; ?>
+        <a href="index.php" class="btn btn-secondary mb-3"><i class="fas fa-arrow-left"></i> Назад към таблото</a>
         
         <?php if ($error): ?>
             <?php echo $error; ?>
