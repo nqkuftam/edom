@@ -560,7 +560,7 @@ require_once 'includes/styles.php';
                             <thead>
                               <tr>
                                 <th>Таксувай</th>
-                                <th>Апартамент</th>
+                                <th>Имот</th>
                                 <th>Сума (лв.)</th>
                               </tr>
                             </thead>
@@ -570,7 +570,7 @@ require_once 'includes/styles.php';
                                 <td class="text-center">
                                   <input type="checkbox" class="charge-checkbox" name="charge[<?php echo $apartment['id']; ?>]" value="1" checked onchange="toggleChargeRow(this)">
                                 </td>
-                                <td><?php echo htmlspecialchars($apartment['building_name'] . ' - ' . $apartment['number']); ?></td>
+                                <td><?php echo htmlspecialchars(getPropertyTypeName($apartment['type']) . ' ' . $apartment['number']); ?></td>
                                 <td><input type="number" class="form-control amount-input" name="amounts[<?php echo $apartment['id']; ?>]" step="0.01" min="0" value="0"></td>
                               </tr>
                               <?php endforeach; ?>
@@ -607,7 +607,7 @@ require_once 'includes/styles.php';
                                 <option value="">Всички апартаменти</option>
                                 <?php foreach ($apartments as $apartment): ?>
                                     <option value="<?php echo $apartment['id']; ?>" <?php if (isset($_GET['filter_apartment']) && $_GET['filter_apartment'] == $apartment['id']) echo 'selected'; ?>>
-                                        <?php echo htmlspecialchars($apartment['building_name'] . ' - Апартамент ' . $apartment['number']); ?>
+                                        <?php echo htmlspecialchars(getPropertyTypeName($apartment['type']) . ' ' . $apartment['number']); ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -700,7 +700,7 @@ require_once 'includes/styles.php';
                                 foreach ($filtered_payments as $payment): 
                                 ?>
                                 <tr>
-                                    <td><?php echo htmlspecialchars($payment['building_name'] . ' - ' . $payment['apartment_number']); ?></td>
+                                    <td><?php echo htmlspecialchars(getPropertyTypeName($payment['type']) . ' ' . $payment['apartment_number']); ?></td>
                                     <td><?php echo number_format($payment['amount'], 2); ?></td>
                                     <td><?php echo htmlspecialchars($payment['payment_date']); ?></td>
                                     <td><?php echo htmlspecialchars($payment['payment_method']); ?></td>
@@ -731,7 +731,7 @@ require_once 'includes/styles.php';
                                     <option value="">Изберете апартамент</option>
                                     <?php foreach ($apartments as $apartment): ?>
                                     <option value="<?php echo $apartment['id']; ?>">
-                                        <?php echo htmlspecialchars($apartment['building_name'] . ' - Апартамент ' . $apartment['number']); ?>
+                                        <?php echo htmlspecialchars(getPropertyTypeName($apartment['type']) . ' ' . $apartment['number']); ?>
                                     </option>
                                     <?php endforeach; ?>
                                 </select>
@@ -785,26 +785,52 @@ require_once 'includes/styles.php';
       </div>
       <div class="tab-pane fade" id="debts" role="tabpanel">
         <div class="card mb-3 shadow-sm" style="font-size:0.95rem;">
-          <div class="card-header bg-danger text-white"><i class="fas fa-exclamation-circle"></i> Задължения по апартаменти</div>
           <div class="card-body p-3">
+            <!-- Филтри за задължения -->
+            <form method="GET" class="row g-3 align-items-end mb-3">
+                <input type="hidden" name="tab" value="debts">
+                <div class="col-md-4">
+                    <label for="debt_filter_apartment" class="form-label">Имот:</label>
+                    <select name="debt_filter_apartment" id="debt_filter_apartment" class="form-select">
+                        <option value="">Всички имоти</option>
+                        <?php foreach ($apartments as $apartment): ?>
+                            <option value="<?php echo $apartment['id']; ?>" <?php if (isset($_GET['debt_filter_apartment']) && $_GET['debt_filter_apartment'] == $apartment['id']) echo 'selected'; ?>>
+                                <?php echo htmlspecialchars(getPropertyTypeName($apartment['type']) . ' ' . $apartment['number']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="debt_filter_min" class="form-label">Минимално задължение (лв.):</label>
+                    <input type="number" step="0.01" name="debt_filter_min" id="debt_filter_min" class="form-control" value="<?php echo isset($_GET['debt_filter_min']) ? htmlspecialchars($_GET['debt_filter_min']) : ''; ?>">
+                </div>
+                <div class="col-md-4 text-end">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Филтрирай</button>
+                </div>
+            </form>
             <div class="table-responsive">
               <table class="table table-striped table-bordered table-sm">
                 <thead class="table-dark">
                   <tr>
-                    <th>Апартамент</th>
+                    <th>Имот</th>
                     <th>Баланс</th>
                     <th>Задължения</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  <?php foreach ($apartments as $apartment):
+                  <?php 
+                  foreach ($apartments as $apartment):
                     $aid = $apartment['id'];
                     $debt = $apartmentDebts[$aid] ?? 0;
                     if ($debt == 0) continue;
+                    // Филтриране по имот
+                    if (isset($_GET['debt_filter_apartment']) && $_GET['debt_filter_apartment'] !== '' && $_GET['debt_filter_apartment'] != $aid) continue;
+                    // Филтриране по минимално задължение
+                    if (isset($_GET['debt_filter_min']) && $_GET['debt_filter_min'] !== '' && $debt < floatval($_GET['debt_filter_min'])) continue;
                   ?>
                   <tr>
-                    <td><?php echo htmlspecialchars($apartment['building_name'] . ' - ' . $apartment['number']); ?></td>
+                    <td><?php echo htmlspecialchars(getPropertyTypeName($apartment['type']) . ' ' . $apartment['number']); ?></td>
                     <td><?php echo number_format($apartment['balance'], 2); ?> лв.</td>
                     <td><?php echo number_format($debt, 2); ?> лв.</td>
                     <td><button class="btn btn-success btn-sm pay-apartment-btn" data-apartment='<?php echo json_encode($apartment); ?>'><i class="fas fa-credit-card"></i> Плати</button></td>
@@ -1038,7 +1064,7 @@ if (payPaymentMethod) {
 const apartmentBalances = <?php echo json_encode(array_column($apartments, 'balance', 'id')); ?>;
 // Показване на модал за плащане на апартамент
 Array.from(document.querySelectorAll('.pay-apartment-btn')).forEach(function(btn) {
-  btn.addEventListener.call(this, function() {
+  btn.addEventListener('click', function() {
     var apartment = JSON.parse(this.getAttribute('data-apartment'));
     var aid = apartment.id;
     document.getElementById('pay_apartment_modal_id').value = aid;
@@ -1126,7 +1152,7 @@ function updateApartmentsList() {
                     <td class="text-center">
                         <input type="checkbox" class="charge-checkbox" name="charge[${apartment.id}]" value="1" checked onchange="toggleChargeRow(this)">
                     </td>
-                    <td>${apartment.building_name} - ${apartment.number}</td>
+                    <td>${getPropertyTypeName(apartment.type)} ${apartment.number}</td>
                     <td><input type="number" class="form-control amount-input" name="amounts[${apartment.id}]" step="0.01" min="0" value="0"></td>
                 `;
                 tbody.appendChild(tr);
@@ -1140,6 +1166,18 @@ function updateApartmentsList() {
 
 // Добавяме слушател за промяна на сградата
 document.querySelector('select[name="building_id"]').addEventListener('change', updateApartmentsList);
+
+function getPropertyTypeName($type) {
+    $types = [
+        'apartment' => 'Апартамент',
+        'garage' => 'Гараж',
+        'room' => 'Стая',
+        'office' => 'Офис',
+        'shop' => 'Магазин',
+        'warehouse' => 'Склад'
+    ];
+    return $types[$type] ?? $type;
+}
 </script>
 </body>
 </html> 
