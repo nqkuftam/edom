@@ -157,7 +157,7 @@ try {
         <a href="index.php" class="btn btn-secondary mb-3"><i class="fas fa-arrow-left"></i> Назад към таблото</a>
         
         <?php if ($currentBuilding): ?>
-        <div class="building-info" style="max-width:600px;margin-left:auto;margin-right:auto;">
+        <div class="building-info">
             <h4 class="d-flex align-items-center">
                 <i class="fas fa-building me-2"></i> Текуща сграда: 
                 <?php echo renderBuildingSelector(); ?>
