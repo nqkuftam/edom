@@ -25,9 +25,20 @@ try {
     
     // Вземане на обитателите за апартамента
     $stmt = $pdo->prepare("
-        SELECT * FROM residents 
-        WHERE apartment_id = ? 
-        ORDER BY is_owner DESC, is_primary DESC, last_name, first_name
+        SELECT r.*, 
+               CASE 
+                   WHEN r.is_owner = 1 THEN CONCAT(r.first_name, ' ', r.last_name, ' (', 
+                       CASE r.owner_type
+                           WHEN 'individual' THEN 'Физическо лице'
+                           WHEN 'company' THEN 'Юридическо лице'
+                           WHEN 'inheritance' THEN 'Наследство'
+                           ELSE 'Друго'
+                       END, ')')
+                   ELSE CONCAT(r.first_name, ' ', r.last_name)
+               END as full_name
+        FROM residents r 
+        WHERE r.apartment_id = ? 
+        ORDER BY r.is_owner DESC, r.is_primary DESC, r.last_name, r.first_name
     ");
     $stmt->execute([$apartment_id]);
     $residents = $stmt->fetchAll(PDO::FETCH_ASSOC);

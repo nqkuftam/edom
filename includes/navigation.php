@@ -1,23 +1,23 @@
 <?php
 function renderNavigation($currentPage = '') {
-    $navItems = [
-        'dashboard' => ['icon' => 'fas fa-tachometer-alt', 'text' => 'Табло', 'url' => 'index.php'],
-        'apartments' => ['icon' => 'fas fa-home', 'text' => 'Апартаменти', 'url' => 'apartments.php'],
-        'resident_history' => ['icon' => 'fas fa-book', 'text' => 'Домова книга', 'url' => 'resident_history.php'],
-        'payments' => ['icon' => 'fas fa-money-bill-wave', 'text' => 'Плащания', 'url' => 'payments.php'],
-        'fees' => ['icon' => 'fas fa-file-invoice-dollar', 'text' => 'Такси', 'url' => 'fees.php'],
-        'reports' => ['icon' => 'fas fa-chart-bar', 'text' => 'Отчети', 'url' => 'reports.php'],
-        'settings' => ['icon' => 'fas fa-cog', 'text' => 'Настройки', 'url' => 'settings.php']
+    $pages = [
+        'index' => ['title' => 'Табло', 'url' => 'index.php'],
+        'buildings' => ['title' => 'Сгради', 'url' => 'buildings.php'],
+        'apartments' => ['title' => 'Апартаменти', 'url' => 'apartments.php'],
+        'residents' => ['title' => 'Обитатели', 'url' => 'residents.php'],
+        'fees' => ['title' => 'Такси', 'url' => 'fees.php'],
+        'payments' => ['title' => 'Плащания', 'url' => 'payments.php'],
+        'reports' => ['title' => 'Отчети', 'url' => 'reports.php']
     ];
     
     $html = '<div class="nav-links">';
-    foreach ($navItems as $page => $info) {
+    foreach ($pages as $page => $info) {
         $active = $currentPage === $page ? 'active' : '';
         $html .= sprintf(
             '<a href="%s" class="%s">%s</a>',
             $info['url'],
             $active,
-            $info['text']
+            $info['title']
         );
     }
     $html .= '<a href="logout.php" class="btn btn-danger">Изход</a>';
