@@ -313,8 +313,7 @@ try {
         
         <?php if ($currentBuilding): ?>
         <div class="building-info">
-            <h4><i class="fas fa-building"></i> Текуща сграда: <?php echo htmlspecialchars($currentBuilding['name']); ?></h4>
-            <?php echo renderBuildingSelector(); ?>
+            <h4><i class="fas fa-building"></i> Текуща сграда: <?php echo renderBuildingSelector(); ?></h4>
             <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
         </div>
         <?php endif; ?>
