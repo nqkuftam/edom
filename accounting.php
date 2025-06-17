@@ -364,9 +364,18 @@ require_once 'includes/styles.php';
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
+<div class="header">
+    <div class="header-content">
+        <h1>Счетоводство</h1>
+        <form method="GET" class="d-flex align-items-center">
+            <label for="building_id" class="me-2">Текуща сграда:</label>
+            <?php echo renderBuildingSelector(); ?>
+        </form>
+        <?php echo renderNavigation('accounting'); ?>
+    </div>
+</div>
 <div class="container-fluid mt-4">
     <h2 class="mb-4"><i class="fas fa-coins"></i> Счетоводство</h2>
-    <?php echo renderBuildingSelector(); ?>
     <?php if ($error): ?>
         <div class="alert alert-danger"><?php echo $error; ?></div>
     <?php endif; ?>

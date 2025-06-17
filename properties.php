@@ -302,14 +302,15 @@ try {
     <div class="header">
         <div class="header-content">
             <h1>Имоти</h1>
+            <form method="GET" class="d-flex align-items-center">
+                <label for="building_id" class="me-2">Текуща сграда:</label>
+                <?php echo renderBuildingSelector(); ?>
+            </form>
             <?php echo renderNavigation('properties'); ?>
         </div>
     </div>
-
-    <div class="container">
+    <div class="container-fluid mt-4">
         <a href="index.php" class="btn btn-secondary mb-3"><i class="fas fa-arrow-left"></i> Назад към таблото</a>
-        
-        <?php echo renderBuildingSelector(); ?>
         
         <?php if ($currentBuilding): ?>
         <div class="building-info">

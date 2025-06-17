@@ -107,11 +107,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <div class="header">
         <div class="header-content">
-            <h1><i class="fas fa-chart-bar"></i> Справки</h1>
+            <h1>Отчети</h1>
+            <form method="GET" class="d-flex align-items-center">
+                <label for="building_id" class="me-2">Текуща сграда:</label>
+                <?php echo renderBuildingSelector(); ?>
+            </form>
             <?php echo renderNavigation('reports'); ?>
         </div>
     </div>
-    <div class="container">
+    <div class="container-fluid mt-4">
         <?php echo renderBuildingSelector(); ?>
         <?php $currentBuilding = getCurrentBuilding(); if ($currentBuilding): ?>
         <div class="building-info">
