@@ -35,8 +35,11 @@ function renderBuildingSelector() {
     $buildings = $pdo->query("SELECT * FROM buildings ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
     $currentBuilding = getCurrentBuilding();
     
-    $html = '<select name="building_id" id="building_id" class="form-select" onchange="this.form.submit()">';
-    $html .= '<option value="">Всички сгради</option>';
+    $html = '<div class="building-selector">';
+    $html .= '<form method="GET" class="d-flex align-items-center">';
+    $html .= '<label for="building_id" class="me-2">Текуща сграда:</label>';
+    $html .= '<select name="building_id" id="building_id" class="form-select" onchange="this.form.submit()">';
+    $html .= '<option value="">Изберете сграда</option>';
     
     foreach ($buildings as $building) {
         $selected = ($currentBuilding && $currentBuilding['id'] == $building['id']) ? 'selected' : '';
@@ -49,6 +52,8 @@ function renderBuildingSelector() {
     }
     
     $html .= '</select>';
+    $html .= '</form>';
+    $html .= '</div>';
     
     return $html;
 }

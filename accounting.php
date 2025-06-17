@@ -367,11 +367,8 @@ require_once 'includes/styles.php';
 <div class="header">
     <div class="header-content">
         <h1>Счетоводство</h1>
-        <form method="GET" class="d-flex align-items-center">
-            <label for="building_id" class="me-2">Текуща сграда:</label>
-            <?php echo renderBuildingSelector(); ?>
-        </form>
         <?php echo renderNavigation('accounting'); ?>
+        <?php echo renderBuildingSelector(); ?>
     </div>
 </div>
 <div class="container-fluid mt-4">

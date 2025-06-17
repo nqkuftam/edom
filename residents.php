@@ -149,11 +149,8 @@ try {
     <div class="header">
         <div class="header-content">
             <h1>Обитатели</h1>
-            <form method="GET" class="d-flex align-items-center">
-                <label for="building_id" class="me-2">Текуща сграда:</label>
-                <?php echo renderBuildingSelector(); ?>
-            </form>
             <?php echo renderNavigation('residents'); ?>
+            <?php echo renderBuildingSelector(); ?>
         </div>
     </div>
 
