@@ -1,4 +1,6 @@
 <?php
+header('X-Frame-Options: SAMEORIGIN');
+header('Cross-Origin-Resource-Policy: same-origin');
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
