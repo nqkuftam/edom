@@ -88,13 +88,13 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
     <div class="container">
-        <?php $currentBuilding = getCurrentBuilding(); ?>
+        <?php echo renderBuildingSelector(); ?>
+        <?php $currentBuilding = getCurrentBuilding(); if ($currentBuilding): ?>
         <div class="building-info">
-            <h4><i class="fas fa-building"></i> Текуща сграда: <?php echo renderBuildingSelector(); ?></h4>
-            <?php if ($currentBuilding): ?>
+            <h4><i class="fas fa-building"></i> Текуща сграда: <?php echo htmlspecialchars($currentBuilding['name']); ?></h4>
             <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
-            <?php endif; ?>
         </div>
+        <?php endif; ?>
         <a href="index.php" class="btn btn-secondary mb-3"><i class="fas fa-arrow-left"></i> Назад към таблото</a>
         <button class="btn btn-primary mb-3" onclick="showAddModal()"><i class="fas fa-plus"></i> Добави нова сграда</button>
         <div class="grid">

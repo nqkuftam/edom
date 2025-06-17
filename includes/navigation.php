@@ -5,7 +5,7 @@ function renderNavigation($currentPage = '') {
         'buildings' => ['title' => 'Сгради', 'url' => 'buildings.php'],
         'properties' => ['title' => 'Имоти', 'url' => 'properties.php'],
         'residents' => ['title' => 'Обитатели', 'url' => 'residents.php'],
-        'reports' => ['title' => 'Отчети', 'url' => 'reports.php']
+        'accounting' => ['title' => 'Счетоводство', 'url' => 'accounting.php']
     ];
     
     $html = '<div class="nav-links">';
