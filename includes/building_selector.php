@@ -46,7 +46,6 @@ function renderBuildingSelector() {
 
     $html = '<div class="building-selector mb-4">';
     $html .= '<form method="POST" action="set_building.php" class="d-flex align-items-center">';
-    $html .= '<label for="building_id" class="me-2">Изберете сграда:</label>';
     $html .= '<select name="building_id" id="building_id" class="form-select me-2" style="width: auto;" onchange="this.form.submit()">';
     
     foreach ($buildings as $building) {
