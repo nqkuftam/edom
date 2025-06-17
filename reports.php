@@ -48,6 +48,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ");
             $stmt->execute([$building_id]);
             $reportData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            header('Location: reports.php?report_type=' . $report_type . '&building_id=' . $building_id . '&start_date=' . $start_date . '&end_date=' . $end_date);
+            exit();
             break;
 
         case 'period_payments':

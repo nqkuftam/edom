@@ -30,6 +30,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!empty($name) && !empty($address) && $floors > 0 && $total_apartments > 0) {
                     $stmt = $pdo->prepare("INSERT INTO buildings (name, address, floors, total_apartments) VALUES (?, ?, ?, ?)");
                     $stmt->execute([$name, $address, $floors, $total_apartments]);
+                    $success = showSuccess('Сградата е добавена успешно.');
+                    header('Location: buildings.php');
+                    exit();
                 }
                 break;
                 
@@ -43,6 +46,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($id > 0 && !empty($name) && !empty($address) && $floors > 0 && $total_apartments > 0) {
                     $stmt = $pdo->prepare("UPDATE buildings SET name = ?, address = ?, floors = ?, total_apartments = ? WHERE id = ?");
                     $stmt->execute([$name, $address, $floors, $total_apartments, $id]);
+                    $success = showSuccess('Сградата е редактирана успешно.');
+                    header('Location: buildings.php');
+                    exit();
                 }
                 break;
                 
@@ -51,6 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($id > 0) {
                     $stmt = $pdo->prepare("DELETE FROM buildings WHERE id = ?");
                     $stmt->execute([$id]);
+                    $success = showSuccess('Сградата е изтрита успешно.');
+                    header('Location: buildings.php');
+                    exit();
                 }
                 break;
         }

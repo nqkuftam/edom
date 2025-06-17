@@ -42,6 +42,8 @@ try {
                         $stmt = $pdo->prepare("INSERT INTO payments (apartment_id, fee_id, amount, payment_date, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)");
                         $stmt->execute([$apartment_id, $fee_id, $amount, $payment_date, $payment_method, $notes]);
                         $success = showSuccess('Плащането е добавено успешно.');
+                        header('Location: payments.php');
+                        exit();
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
                     }
@@ -60,6 +62,8 @@ try {
                         $stmt = $pdo->prepare("UPDATE payments SET apartment_id = ?, fee_id = ?, amount = ?, payment_date = ?, payment_method = ?, notes = ? WHERE id = ?");
                         $stmt->execute([$apartment_id, $fee_id, $amount, $payment_date, $payment_method, $notes, $id]);
                         $success = showSuccess('Плащането е редактирано успешно.');
+                        header('Location: payments.php');
+                        exit();
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
                     }
@@ -71,6 +75,8 @@ try {
                         $stmt = $pdo->prepare("DELETE FROM payments WHERE id = ?");
                         $stmt->execute([$id]);
                         $success = showSuccess('Плащането е изтрито успешно.');
+                        header('Location: payments.php');
+                        exit();
                     }
                     break;
             }

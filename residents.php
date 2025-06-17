@@ -47,6 +47,8 @@ try {
                         $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date, move_out_date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                         $stmt->execute([$apartment_id, $first_name, $last_name, $phone, $email, $is_owner, $is_primary, $move_in_date, $move_out_date ?: null, $notes]);
                         $success = showSuccess('Обитателят е добавен успешно.');
+                        header('Location: residents.php');
+                        exit();
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
                     }
@@ -69,6 +71,8 @@ try {
                         $stmt = $pdo->prepare("UPDATE residents SET apartment_id = ?, first_name = ?, last_name = ?, phone = ?, email = ?, is_owner = ?, is_primary = ?, move_in_date = ?, move_out_date = ?, notes = ? WHERE id = ?");
                         $stmt->execute([$apartment_id, $first_name, $last_name, $phone, $email, $is_owner, $is_primary, $move_in_date, $move_out_date ?: null, $notes, $id]);
                         $success = showSuccess('Обитателят е редактиран успешно.');
+                        header('Location: residents.php');
+                        exit();
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
                     }
@@ -80,6 +84,8 @@ try {
                         $stmt = $pdo->prepare("DELETE FROM residents WHERE id = ?");
                         $stmt->execute([$id]);
                         $success = showSuccess('Обитателят е изтрит успешно.');
+                        header('Location: residents.php');
+                        exit();
                     }
                     break;
             }

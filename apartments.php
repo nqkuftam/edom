@@ -82,6 +82,8 @@ try {
                             
                             $pdo->commit();
                             $success = showSuccess('Имотът е добавен успешно.');
+                            header('Location: apartments.php');
+                            exit();
                         } catch (Exception $e) {
                             $pdo->rollBack();
                             $error = showError('Грешка при добавяне на имота: ' . $e->getMessage());
@@ -142,6 +144,8 @@ try {
                             
                             $pdo->commit();
                             $success = showSuccess('Имотът е редактиран успешно.');
+                            header('Location: apartments.php');
+                            exit();
                         } catch (Exception $e) {
                             $pdo->rollBack();
                             $error = showError('Грешка при редактиране на имота: ' . $e->getMessage());
@@ -153,7 +157,11 @@ try {
                     
                 case 'delete_apartment':
                     try {
-                        $id = $_POST['id'];
+                        $id = (int)($_POST['id'] ?? 0);
+                        if ($id <= 0) {
+                            throw new Exception('Невалиден ID на имота.');
+                        }
+
                         $pdo->beginTransaction();
                         
                         // Първо проверяваме дали има свързани плащания
@@ -180,8 +188,12 @@ try {
                         
                         $pdo->commit();
                         echo 'OK';
+                        header('Location: apartments.php');
+                        exit();
                     } catch (Exception $e) {
-                        $pdo->rollBack();
+                        if ($pdo->inTransaction()) {
+                            $pdo->rollBack();
+                        }
                         echo '<div class="alert alert-danger">Грешка при изтриване на имота: ' . $e->getMessage() . '</div>';
                     }
                     exit;
@@ -200,6 +212,8 @@ try {
                         $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                         $stmt->execute([$apartment_id, $first_name, $last_name, $phone, $email, $is_owner, $is_primary, $move_in_date]);
                         $success = showSuccess('Обитателят е добавен успешно.');
+                        header('Location: apartments.php');
+                        exit();
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
                     }
@@ -221,6 +235,8 @@ try {
                         $stmt = $pdo->prepare("UPDATE residents SET apartment_id = ?, first_name = ?, last_name = ?, phone = ?, email = ?, is_owner = ?, is_primary = ?, move_in_date = ?, move_out_date = ? WHERE id = ?");
                         $stmt->execute([$apartment_id, $first_name, $last_name, $phone, $email, $is_owner, $is_primary, $move_in_date, $move_out_date ?: null, $id]);
                         $success = showSuccess('Обитателят е редактиран успешно.');
+                        header('Location: apartments.php');
+                        exit();
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
                     }
@@ -232,6 +248,8 @@ try {
                         $stmt = $pdo->prepare("DELETE FROM residents WHERE id = ?");
                         $stmt->execute([$id]);
                         $success = showSuccess('Обитателят е изтрит успешно.');
+                        header('Location: apartments.php');
+                        exit();
                     }
                     break;
             }
@@ -713,11 +731,16 @@ try {
                     method: 'POST',
                     body: formData
                 })
-                .then(response => response.text())
-                .then(html => {
-                    if (html.trim() === 'OK') {
-                        window.location.reload();
+                .then(response => {
+                    if (response.redirected) {
+                        window.location.href = response.url;
                     } else {
+                        return response.text();
+                    }
+                })
+                .then(html => {
+                    if (html) {
+                        // Показваме грешката
                         const div = document.createElement('div');
                         div.innerHTML = html;
                         const alertDiv = div.querySelector('.alert-danger');
@@ -1008,7 +1031,57 @@ try {
             if (editTypeSelect) {
                 editTypeSelect.addEventListener('change', toggleEditPropertyFields);
             }
-            
+
+            // Добавяне на event listener за формата за добавяне
+            const addForm = document.querySelector('#addModal form');
+            if (addForm) {
+                addForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    // Проверяваме дали формата е отворена
+                    const addModal = document.getElementById('addModal');
+                    if (!addModal || !addModal.classList.contains('show')) {
+                        return false;
+                    }
+                    
+                    // Проверяваме дали бутонът "Добави" е натиснат
+                    if (document.activeElement && document.activeElement.id !== 'addApartmentBtn') {
+                        return false;
+                    }
+
+                    const formData = new FormData(this);
+                    
+                    fetch('apartments.php', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => {
+                        if (response.redirected) {
+                            window.location.href = response.url;
+                        } else {
+                            return response.text();
+                        }
+                    })
+                    .then(html => {
+                        if (html) {
+                            // Показваме грешката
+                            const div = document.createElement('div');
+                            div.innerHTML = html;
+                            const alertDiv = div.querySelector('.alert-danger');
+                            if (alertDiv) {
+                                alert(alertDiv.textContent.trim());
+                            } else {
+                                alert('Възникна грешка при добавяне на имота.');
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Възникна грешка при добавяне на имота: ' + error.message);
+                    });
+                });
+            }
+
             // Обработка на формата за редактиране
             const editForm = document.getElementById('editForm');
             if (editForm) {
@@ -1022,34 +1095,30 @@ try {
                         method: 'POST',
                         body: formData
                     })
-                    .then(response => response.text())
+                    .then(response => {
+                        if (response.redirected) {
+                            window.location.href = response.url;
+                        } else {
+                            return response.text();
+                        }
+                    })
                     .then(html => {
-                        // Презареждане на страницата за да се покажат промените
-                        window.location.reload();
+                        if (html) {
+                            // Показваме грешката
+                            const div = document.createElement('div');
+                            div.innerHTML = html;
+                            const alertDiv = div.querySelector('.alert-danger');
+                            if (alertDiv) {
+                                alert(alertDiv.textContent.trim());
+                            } else {
+                                alert('Възникна грешка при редактиране на имота.');
+                            }
+                        }
                     })
                     .catch(error => {
                         console.error('Error:', error);
-                        alert('Възникна грешка при запазване на промените.');
+                        alert('Възникна грешка при редактиране на имота: ' + error.message);
                     });
-                });
-            }
-
-            // Добавяне на event listener за формата за добавяне
-            const addForm = document.querySelector('#addModal form');
-            if (addForm) {
-                addForm.addEventListener('submit', function(e) {
-                    // Проверяваме дали формата е отворена
-                    const addModal = document.getElementById('addModal');
-                    if (!addModal || !addModal.classList.contains('show')) {
-                        e.preventDefault();
-                        return false;
-                    }
-                    
-                    // Проверяваме дали бутонът "Добави" е натиснат
-                    if (document.activeElement && document.activeElement.id !== 'addApartmentBtn') {
-                        e.preventDefault();
-                        return false;
-                    }
                 });
             }
 

@@ -61,6 +61,8 @@ try {
                             }
                             $pdo->commit();
                             $success = showSuccess('Таксата и разпределението са добавени успешно.');
+                            header('Location: fees.php');
+                            exit();
                         } catch (Exception $e) {
                             $pdo->rollBack();
                             $error = showError('Възникна грешка при добавянето: ' . $e->getMessage());
@@ -81,6 +83,8 @@ try {
                         $stmt = $pdo->prepare("UPDATE fees SET apartment_id = ?, month = ?, amount = ?, description = ? WHERE id = ?");
                         $stmt->execute([$apartment_id, $month, $amount, $description, $id]);
                         $success = showSuccess('Таксата е редактирана успешно.');
+                        header('Location: fees.php');
+                        exit();
                     } else {
                         $error = showError('Моля, попълнете всички задължителни полета.');
                     }
@@ -92,6 +96,8 @@ try {
                         $stmt = $pdo->prepare("DELETE FROM fees WHERE id = ?");
                         $stmt->execute([$id]);
                         $success = showSuccess('Таксата е изтрита успешно.');
+                        header('Location: fees.php');
+                        exit();
                     }
                     break;
             }
