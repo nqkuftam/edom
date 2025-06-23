@@ -10,6 +10,7 @@ require_once 'includes/db.php';
 require_once 'includes/auth.php';
 require_once 'includes/navigation.php';
 require_once 'includes/building_selector.php';
+require_once 'includes/error_handler.php';
 
 // Проверка дали потребителят е логнат
 if (!isLoggedIn()) {
@@ -25,11 +26,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $name = $_POST['name'] ?? '';
                 $address = $_POST['address'] ?? '';
                 $floors = (int)($_POST['floors'] ?? 0);
-                $total_apartments = (int)($_POST['total_apartments'] ?? 0);
+                $total_properties = (int)($_POST['total_properties'] ?? 0);
                 
-                if (!empty($name) && !empty($address) && $floors > 0 && $total_apartments > 0) {
-                    $stmt = $pdo->prepare("INSERT INTO buildings (name, address, floors, total_apartments) VALUES (?, ?, ?, ?)");
-                    $stmt->execute([$name, $address, $floors, $total_apartments]);
+                if (!empty($name) && !empty($address) && $floors > 0 && $total_properties > 0) {
+                    $stmt = $pdo->prepare("INSERT INTO buildings (name, address, floors, total_properties) VALUES (?, ?, ?, ?)");
+                    $stmt->execute([$name, $address, $floors, $total_properties]);
                     $success = showSuccess('Сградата е добавена успешно.');
                     header('Location: buildings.php');
                     exit();
@@ -41,11 +42,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $name = $_POST['name'] ?? '';
                 $address = $_POST['address'] ?? '';
                 $floors = (int)($_POST['floors'] ?? 0);
-                $total_apartments = (int)($_POST['total_apartments'] ?? 0);
+                $total_properties = (int)($_POST['total_properties'] ?? 0);
                 
-                if ($id > 0 && !empty($name) && !empty($address) && $floors > 0 && $total_apartments > 0) {
-                    $stmt = $pdo->prepare("UPDATE buildings SET name = ?, address = ?, floors = ?, total_apartments = ? WHERE id = ?");
-                    $stmt->execute([$name, $address, $floors, $total_apartments, $id]);
+                if ($id > 0 && !empty($name) && !empty($address) && $floors > 0 && $total_properties > 0) {
+                    $stmt = $pdo->prepare("UPDATE buildings SET name = ?, address = ?, floors = ?, total_properties = ? WHERE id = ?");
+                    $stmt->execute([$name, $address, $floors, $total_properties, $id]);
                     $success = showSuccess('Сградата е редактирана успешно.');
                     header('Location: buildings.php');
                     exit();
@@ -88,16 +89,8 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
     <div class="container">
-        <?php $currentBuilding = getCurrentBuilding(); if ($currentBuilding): ?>
-        <div class="building-info">
-            <h4 class="d-flex align-items-center">
-                <i class="fas fa-building me-2"></i> Текуща сграда: 
-                <?php echo renderBuildingSelector(); ?>
-            </h4>
-            <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
-        </div>
-        <?php endif; ?>
         <a href="index.php" class="btn btn-secondary mb-3"><i class="fas fa-arrow-left"></i> Назад към таблото</a>
+        <?php echo renderBuildingSelector(); ?>
         <button class="btn btn-primary mb-3" onclick="showAddModal()"><i class="fas fa-plus"></i> Добави нова сграда</button>
         <div class="grid">
             <?php foreach ($buildings as $building): ?>
@@ -105,7 +98,7 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <h3><i class="fas fa-building"></i> <?php echo htmlspecialchars($building['name']); ?></h3>
                 <p><strong><i class="fas fa-map-marker-alt"></i> Адрес:</strong> <?php echo htmlspecialchars($building['address']); ?></p>
                 <p><strong><i class="fas fa-layer-group"></i> Етажи:</strong> <?php echo $building['floors']; ?></p>
-                <p><strong><i class="fas fa-door-open"></i> Апартаменти:</strong> <?php echo $building['total_apartments']; ?></p>
+                <p><strong><i class="fas fa-door-open"></i> Имоти:</strong> <?php echo $building['total_properties']; ?></p>
                 <div class="payment-actions">
                     <button class="btn btn-warning" onclick="showEditModal(<?php echo htmlspecialchars(json_encode($building)); ?>)"><i class="fas fa-edit"></i> Редактирай</button>
                     <button class="btn btn-danger" onclick="deleteBuilding(<?php echo $building['id']; ?>)"><i class="fas fa-trash"></i> Изтрий</button>
@@ -126,7 +119,7 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <form method="POST">
                         <input type="hidden" name="action" value="add_building">
                         <div class="form-group">
-                            <label for="name" class="form-label">Име на集团有限公司:</label>
+                            <label for="name" class="form-label">Име на сграда:</label>
                             <input type="text" class="form-control" id="name" name="name" required>
                         </div>
                         <div class="form-group">
@@ -138,8 +131,8 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <input type="number" class="form-control" id="floors" name="floors" min="1" required>
                         </div>
                         <div class="form-group">
-                            <label for="total_apartments" class="form-label">Общ брой апартаменти:</label>
-                            <input type="number" class="form-control" id="total_apartments" name="total_apartments" min="1" required>
+                            <label for="total_properties" class="form-label">Общ брой имоти:</label>
+                            <input type="number" class="form-control" id="total_properties" name="total_properties" min="1" required>
                         </div>
                         <div class="form-group">
                             <label for="generate_day" class="form-label">Ден за генериране на такси (1-28):</label>
@@ -167,7 +160,7 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <input type="hidden" name="action" value="edit_building">
                         <input type="hidden" name="id" id="edit_id">
                         <div class="form-group">
-                            <label for="edit_name" class="form-label">Име на集团有限公司:</label>
+                            <label for="edit_name" class="form-label">Име на сграда:</label>
                             <input type="text" class="form-control" id="edit_name" name="name" required>
                         </div>
                         <div class="form-group">
@@ -179,8 +172,8 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <input type="number" class="form-control" id="edit_floors" name="floors" min="1" required>
                         </div>
                         <div class="form-group">
-                            <label for="edit_total_apartments" class="form-label">Общ брой апартаменти:</label>
-                            <input type="number" class="form-control" id="edit_total_apartments" name="total_apartments" min="1" required>
+                            <label for="edit_total_properties" class="form-label">Общ брой имоти:</label>
+                            <input type="number" class="form-control" id="edit_total_properties" name="total_properties" min="1" required>
                         </div>
                         <div class="form-group">
                             <label for="generate_day" class="form-label">Ден за генериране на такси (1-28):</label>
@@ -206,7 +199,7 @@ $buildings = $stmt->fetchAll(PDO::FETCH_ASSOC);
             document.getElementById('edit_name').value = building.name;
             document.getElementById('edit_address').value = building.address;
             document.getElementById('edit_floors').value = building.floors;
-            document.getElementById('edit_total_apartments').value = building.total_apartments;
+            document.getElementById('edit_total_properties').value = building.total_properties;
             var modal = new bootstrap.Modal(document.getElementById('editModal'));
             modal.show();
         }

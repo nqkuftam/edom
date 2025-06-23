@@ -19,8 +19,8 @@ if (!isLoggedIn()) {
 
 $currentBuilding = getCurrentBuilding();
 
-// Вземане на апартаментите
-$query = "SELECT a.*, b.name as building_name FROM apartments a JOIN buildings b ON a.building_id = b.id";
+// Вземане на имотите
+$query = "SELECT a.*, b.name as building_name FROM properties a JOIN buildings b ON a.building_id = b.id";
 $params = [];
 if ($currentBuilding) {
     $query .= " WHERE a.building_id = ?";
@@ -29,10 +29,18 @@ if ($currentBuilding) {
 $query .= " ORDER BY b.name, a.number";
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
-$apartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$properties = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Ако се показва баланс на имот, вземи го от ledger
+foreach ($properties as &$property) {
+    $stmt = $pdo->prepare("SELECT SUM(CASE WHEN type='credit' THEN amount ELSE -amount END) FROM property_ledger WHERE property_id = ?");
+    $stmt->execute([$property['id']]);
+    $property['balance'] = $stmt->fetchColumn() ?: 0;
+}
+unset($property);
 
 // Филтри
-$filter_apartment = isset($_GET['filter_apartment']) ? (int)$_GET['filter_apartment'] : 0;
+$filter_property = isset($_GET['filter_property']) ? (int)$_GET['filter_property'] : 0;
 $filter_method = $_GET['filter_method'] ?? '';
 $filter_date_from = $_GET['filter_date_from'] ?? '';
 $filter_date_to = $_GET['filter_date_to'] ?? '';
@@ -41,7 +49,7 @@ $filter_date_to = $_GET['filter_date_to'] ?? '';
 $query = "
     SELECT p.*, a.number as apartment_number, b.name as building_name, f.description as fee_description
     FROM payments p
-    JOIN apartments a ON p.apartment_id = a.id
+    JOIN properties a ON p.property_id = a.id
     JOIN buildings b ON a.building_id = b.id
     JOIN fees f ON p.fee_id = f.id
     WHERE 1=1
@@ -51,9 +59,9 @@ if ($currentBuilding) {
     $query .= " AND a.building_id = ?";
     $params[] = $currentBuilding['id'];
 }
-if ($filter_apartment) {
+if ($filter_property) {
     $query .= " AND a.id = ?";
-    $params[] = $filter_apartment;
+    $params[] = $filter_property;
 }
 if ($filter_method) {
     $query .= " AND p.payment_method = ?";
@@ -90,12 +98,12 @@ $payment_methods = ['В брой', 'Банков превод', 'Карта', '�
         <h2><i class="fas fa-list"></i> Платени такси</h2>
         <form method="GET" class="row g-3 align-items-end mb-4">
             <div class="col-md-3">
-                <label for="filter_apartment" class="form-label">Апартамент:</label>
-                <select name="filter_apartment" id="filter_apartment" class="form-select">
-                    <option value="">Всички апартаменти</option>
-                    <?php foreach ($apartments as $apartment): ?>
-                        <option value="<?php echo $apartment['id']; ?>" <?php if ($filter_apartment == $apartment['id']) echo 'selected'; ?>>
-                            <?php echo htmlspecialchars($apartment['building_name'] . ' - Апартамент ' . $apartment['number']); ?>
+                <label for="property_id" class="form-label">Имот:</label>
+                <select class="form-control" id="property_id" name="apartment_id" required>
+                    <option value="">Изберете имот</option>
+                    <?php foreach ($properties as $property): ?>
+                        <option value="<?php echo $property['id']; ?>">
+                            <?php echo htmlspecialchars($property['building_name'] . ' - Имот ' . $property['number']); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -126,7 +134,7 @@ $payment_methods = ['В брой', 'Банков превод', 'Карта', '�
                 <table class="table table-striped table-bordered table-sm">
                     <thead class="table-dark">
                         <tr>
-                            <th>Апартамент</th>
+                            <th>Имот</th>
                             <th>Сума (лв.)</th>
                             <th>Дата</th>
                             <th>Метод</th>

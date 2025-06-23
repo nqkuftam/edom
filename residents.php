@@ -18,10 +18,13 @@ if (!isset($_SESSION['user_id']) || !isLoggedIn()) {
     header('Location: login.php');
     exit();
 }
-require_once 'includes/styles.php';
+// require_once 'includes/styles.php';
 
 $error = '';
 $success = '';
+
+// Вземане на избрания имот от GET параметър
+$selectedPropertyId = isset($_GET['property_id']) ? (int)$_GET['property_id'] : 0;
 
 try {
     // Вземане на текущата сграда
@@ -32,20 +35,20 @@ try {
         if (isset($_POST['action'])) {
             switch ($_POST['action']) {
                 case 'add_resident':
-                    $apartment_id = (int)($_POST['apartment_id'] ?? 0);
+                    $property_id = (int)($_POST['property_id'] ?? 0);
                     $first_name = $_POST['first_name'] ?? '';
+                    $middle_name = $_POST['middle_name'] ?? '';
                     $last_name = $_POST['last_name'] ?? '';
                     $phone = $_POST['phone'] ?? '';
                     $email = $_POST['email'] ?? '';
-                    $is_owner = isset($_POST['is_owner']) ? 1 : 0;
-                    $is_primary = isset($_POST['is_primary']) ? 1 : 0;
+                    $status = $_POST['status'] ?? 'user';
                     $move_in_date = $_POST['move_in_date'] ?? '';
                     $move_out_date = $_POST['move_out_date'] ?? '';
                     $notes = $_POST['notes'] ?? '';
                     
-                    if ($apartment_id > 0 && !empty($first_name) && !empty($last_name) && !empty($move_in_date)) {
-                        $stmt = $pdo->prepare("INSERT INTO residents (apartment_id, first_name, last_name, phone, email, is_owner, is_primary, move_in_date, move_out_date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$apartment_id, $first_name, $last_name, $phone, $email, $is_owner, $is_primary, $move_in_date, $move_out_date ?: null, $notes]);
+                    if ($property_id > 0 && !empty($first_name) && !empty($last_name) && !empty($move_in_date)) {
+                        $stmt = $pdo->prepare("INSERT INTO residents (property_id, first_name, middle_name, last_name, phone, email, status, move_in_date, move_out_date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$property_id, $first_name, $middle_name, $last_name, $phone, $email, $status, $move_in_date, $move_out_date ?: null, $notes]);
                         $success = showSuccess('Обитателят е добавен успешно.');
                         header('Location: residents.php');
                         exit();
@@ -56,20 +59,20 @@ try {
                     
                 case 'edit_resident':
                     $id = (int)($_POST['id'] ?? 0);
-                    $apartment_id = (int)($_POST['apartment_id'] ?? 0);
+                    $property_id = (int)($_POST['property_id'] ?? 0);
                     $first_name = $_POST['first_name'] ?? '';
+                    $middle_name = $_POST['middle_name'] ?? '';
                     $last_name = $_POST['last_name'] ?? '';
                     $phone = $_POST['phone'] ?? '';
                     $email = $_POST['email'] ?? '';
-                    $is_owner = isset($_POST['is_owner']) ? 1 : 0;
-                    $is_primary = isset($_POST['is_primary']) ? 1 : 0;
+                    $status = $_POST['status'] ?? 'user';
                     $move_in_date = $_POST['move_in_date'] ?? '';
                     $move_out_date = $_POST['move_out_date'] ?? '';
                     $notes = $_POST['notes'] ?? '';
                     
-                    if ($id > 0 && $apartment_id > 0 && !empty($first_name) && !empty($last_name) && !empty($move_in_date)) {
-                        $stmt = $pdo->prepare("UPDATE residents SET apartment_id = ?, first_name = ?, last_name = ?, phone = ?, email = ?, is_owner = ?, is_primary = ?, move_in_date = ?, move_out_date = ?, notes = ? WHERE id = ?");
-                        $stmt->execute([$apartment_id, $first_name, $last_name, $phone, $email, $is_owner, $is_primary, $move_in_date, $move_out_date ?: null, $notes, $id]);
+                    if ($id > 0 && $property_id > 0 && !empty($first_name) && !empty($last_name) && !empty($move_in_date)) {
+                        $stmt = $pdo->prepare("UPDATE residents SET property_id = ?, first_name = ?, middle_name = ?, last_name = ?, phone = ?, email = ?, status = ?, move_in_date = ?, move_out_date = ?, notes = ? WHERE id = ?");
+                        $stmt->execute([$property_id, $first_name, $middle_name, $last_name, $phone, $email, $status, $move_in_date, $move_out_date ?: null, $notes, $id]);
                         $success = showSuccess('Обитателят е редактиран успешно.');
                         header('Location: residents.php');
                         exit();
@@ -92,9 +95,9 @@ try {
         }
     }
     
-    // Вземане на всички апартаменти за падащото меню
+    // Вземане на всички имоти за падащото меню
     $query = "SELECT a.*, b.name as building_name 
-              FROM apartments a 
+              FROM properties a 
               JOIN buildings b ON a.building_id = b.id";
     $params = [];
     
@@ -107,13 +110,13 @@ try {
     
     $stmt = $pdo->prepare($query);
     $stmt->execute($params);
-    $apartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $properties = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Вземане на обитателите според избраната сграда
+    // Вземане на обитателите според избрания имот
     $query = "
-        SELECT r.*, a.number as apartment_number, b.name as building_name 
+        SELECT r.*, a.number as property_number, b.name as building_name 
         FROM residents r 
-        JOIN apartments a ON r.apartment_id = a.id 
+        JOIN properties a ON r.property_id = a.id 
         JOIN buildings b ON a.building_id = b.id 
     ";
     $params = [];
@@ -121,6 +124,12 @@ try {
     if ($currentBuilding) {
         $query .= " WHERE b.id = ?";
         $params[] = $currentBuilding['id'];
+    }
+    
+    // Ако е избран имот, добавяме филтър
+    if ($selectedPropertyId > 0) {
+        $query .= ($currentBuilding ? " AND" : " WHERE") . " a.id = ?";
+        $params[] = $selectedPropertyId;
     }
     
     $query .= " ORDER BY b.name, a.number, r.last_name, r.first_name";
@@ -133,6 +142,22 @@ try {
     $error = handlePDOError($e);
 } catch (Exception $e) {
     $error = handleError($e);
+}
+
+// Функция за показване на статус с подходящ цвят
+function getStatusBadge($status) {
+    switch ($status) {
+        case 'owner':
+            return '<span class="badge bg-primary">Собственик</span>';
+        case 'tenant':
+            return '<span class="badge bg-success">Наемател</span>';
+        case 'resident':
+            return '<span class="badge bg-info">Обитател</span>';
+        case 'user':
+            return '<span class="badge bg-secondary">Ползвател</span>';
+        default:
+            return '<span class="badge bg-light text-dark">' . htmlspecialchars($status) . '</span>';
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -156,15 +181,22 @@ try {
     <div class="container">
         <a href="index.php" class="btn btn-secondary mb-3"><i class="fas fa-arrow-left"></i> Назад към таблото</a>
         
-        <?php if ($currentBuilding): ?>
-        <div class="building-info">
-            <h4 class="d-flex align-items-center">
-                <i class="fas fa-building me-2"></i> Текуща сграда: 
-                <?php echo renderBuildingSelector(); ?>
-            </h4>
-            <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
-        </div>
-        <?php endif; ?>
+        <?php echo renderBuildingSelector(); ?>
+        
+        <!-- Форма за избор на имот -->
+        <form method="GET" class="mb-3" style="max-width:400px;">
+            <div class="input-group">
+                <label class="input-group-text" for="property_id"><i class="fas fa-home"></i> Избери имот</label>
+                <select class="form-select" id="property_id" name="property_id" onchange="this.form.submit()">
+                    <option value="0">-- Всички имоти --</option>
+                    <?php foreach ($properties as $property): ?>
+                        <option value="<?php echo $property['id']; ?>" <?php if ($selectedPropertyId == $property['id']) echo 'selected'; ?>>
+                            <?php echo htmlspecialchars($property['building_name'] . ' - Имот ' . $property['number']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </form>
         
         <?php if ($error): ?>
             <?php echo $error; ?>
@@ -182,24 +214,33 @@ try {
             <?php foreach ($residents as $resident): ?>
             <div class="card">
                 <h3><i class="fas fa-user"></i> <?php echo htmlspecialchars($resident['first_name'] . ' ' . $resident['last_name']); ?></h3>
-                <p><strong><i class="fas fa-building"></i> Сграда:</strong> <?php echo htmlspecialchars($resident['building_name']); ?></p>
-                <p><strong><i class="fas fa-home"></i> Апартамент:</strong> <?php echo htmlspecialchars($resident['apartment_number']); ?></p>
+                <p><strong><i class="fas fa-home"></i> Имот:</strong> <?php
+                    // Вземи типа на имота от properties
+                    $propertyType = '';
+                    foreach ($properties as $p) {
+                        if ($p['id'] == $resident['property_id']) {
+                            $propertyType = $p['type'] ?? '';
+                            break;
+                        }
+                    }
+                    $typeShort = [
+                        'apartment' => 'Ап.',
+                        'garage' => 'Гараж',
+                        'room' => 'Стая',
+                        'office' => 'Офис',
+                        'shop' => 'Магазин',
+                        'warehouse' => 'Склад',
+                        'parking' => 'Паркомясто'
+                    ];
+                    echo ($typeShort[$propertyType] ?? $propertyType) . ' ' . htmlspecialchars($resident['property_number']);
+                ?></p>
                 <?php if ($resident['phone']): ?>
                 <p><strong><i class="fas fa-phone"></i> Телефон:</strong> <?php echo htmlspecialchars($resident['phone']); ?></p>
                 <?php endif; ?>
                 <?php if ($resident['email']): ?>
                 <p><strong><i class="fas fa-envelope"></i> Имейл:</strong> <?php echo htmlspecialchars($resident['email']); ?></p>
                 <?php endif; ?>
-                <p><strong><i class="fas fa-key"></i> Статус:</strong> 
-                    <?php 
-                    if ($resident['is_owner']) {
-                        echo '<span class="badge bg-primary">Собственик</span> ';
-                    }
-                    if ($resident['is_primary']) {
-                        echo '<span class="badge bg-success">Основен обитател</span>';
-                    }
-                    ?>
-                </p>
+                <p><strong><i class="fas fa-key"></i> Статус:</strong> <?php echo getStatusBadge($resident['status']); ?></p>
                 <p><strong><i class="fas fa-calendar-alt"></i> Настаняване:</strong> <?php echo date('d.m.Y', strtotime($resident['move_in_date'])); ?></p>
                 <?php if ($resident['move_out_date']): ?>
                 <p><strong><i class="fas fa-calendar-times"></i> Напуснал на:</strong> <?php echo date('d.m.Y', strtotime($resident['move_out_date'])); ?></p>
@@ -232,12 +273,12 @@ try {
                     <form method="POST">
                         <input type="hidden" name="action" value="add_resident">
                         <div class="form-group">
-                            <label for="apartment_id" class="form-label">Апартамент:</label>
-                            <select class="form-control" id="apartment_id" name="apartment_id" required>
-                                <option value="">Изберете апартамент</option>
-                                <?php foreach ($apartments as $apartment): ?>
-                                <option value="<?php echo $apartment['id']; ?>">
-                                    <?php echo htmlspecialchars($apartment['building_name'] . ' - Апартамент ' . $apartment['number']); ?>
+                            <label for="property_id" class="form-label">Имот:</label>
+                            <select class="form-control" id="property_id" name="property_id" required>
+                                <option value="">Изберете имот</option>
+                                <?php foreach ($properties as $property): ?>
+                                <option value="<?php echo $property['id']; ?>">
+                                    <?php echo htmlspecialchars($property['building_name'] . ' - Имот ' . $property['number']); ?>
                                 </option>
                                 <?php endforeach; ?>
                             </select>
@@ -245,6 +286,10 @@ try {
                         <div class="form-group">
                             <label for="first_name" class="form-label">Име:</label>
                             <input type="text" class="form-control" id="first_name" name="first_name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="middle_name" class="form-label">Презиме:</label>
+                            <input type="text" class="form-control" id="middle_name" name="middle_name">
                         </div>
                         <div class="form-group">
                             <label for="last_name" class="form-label">Фамилия:</label>
@@ -258,13 +303,14 @@ try {
                             <label for="email" class="form-label">Имейл:</label>
                             <input type="email" class="form-control" id="email" name="email">
                         </div>
-                        <div class="form-check mb-3">
-                            <input type="checkbox" class="form-check-input" id="is_owner" name="is_owner">
-                            <label class="form-check-label" for="is_owner">Собственик</label>
-                        </div>
-                        <div class="form-check mb-3">
-                            <input type="checkbox" class="form-check-input" id="is_primary" name="is_primary">
-                            <label class="form-check-label" for="is_primary">Основен обитател</label>
+                        <div class="form-group">
+                            <label for="status" class="form-label">Статус:</label>
+                            <select class="form-control" id="status" name="status" required>
+                                <option value="user">Ползвател</option>
+                                <option value="resident">Обитател</option>
+                                <option value="tenant">Наемател</option>
+                                <option value="owner">Собственик</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label for="move_in_date" class="form-label">Дата на настаняване:</label>
@@ -301,12 +347,12 @@ try {
                         <input type="hidden" name="action" value="edit_resident">
                         <input type="hidden" name="id" id="edit_id">
                         <div class="form-group">
-                            <label for="edit_apartment_id" class="form-label">Апартамент:</label>
-                            <select class="form-control" id="edit_apartment_id" name="apartment_id" required>
-                                <option value="">Изберете апартамент</option>
-                                <?php foreach ($apartments as $apartment): ?>
-                                <option value="<?php echo $apartment['id']; ?>">
-                                    <?php echo htmlspecialchars($apartment['building_name'] . ' - Апартамент ' . $apartment['number']); ?>
+                            <label for="edit_property_id" class="form-label">Имот:</label>
+                            <select class="form-control" id="edit_property_id" name="property_id" required>
+                                <option value="">Изберете имот</option>
+                                <?php foreach ($properties as $property): ?>
+                                <option value="<?php echo $property['id']; ?>">
+                                    <?php echo htmlspecialchars($property['building_name'] . ' - Имот ' . $property['number']); ?>
                                 </option>
                                 <?php endforeach; ?>
                             </select>
@@ -314,6 +360,10 @@ try {
                         <div class="form-group">
                             <label for="edit_first_name" class="form-label">Име:</label>
                             <input type="text" class="form-control" id="edit_first_name" name="first_name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_middle_name" class="form-label">Презиме:</label>
+                            <input type="text" class="form-control" id="edit_middle_name" name="middle_name">
                         </div>
                         <div class="form-group">
                             <label for="edit_last_name" class="form-label">Фамилия:</label>
@@ -327,13 +377,14 @@ try {
                             <label for="edit_email" class="form-label">Имейл:</label>
                             <input type="email" class="form-control" id="edit_email" name="email">
                         </div>
-                        <div class="form-check mb-3">
-                            <input type="checkbox" class="form-check-input" id="edit_is_owner" name="is_owner">
-                            <label class="form-check-label" for="edit_is_owner">Собственик</label>
-                        </div>
-                        <div class="form-check mb-3">
-                            <input type="checkbox" class="form-check-input" id="edit_is_primary" name="is_primary">
-                            <label class="form-check-label" for="edit_is_primary">Основен обитател</label>
+                        <div class="form-group">
+                            <label for="edit_status" class="form-label">Статус:</label>
+                            <select class="form-control" id="edit_status" name="status" required>
+                                <option value="user">Ползвател</option>
+                                <option value="resident">Обитател</option>
+                                <option value="tenant">Наемател</option>
+                                <option value="owner">Собственик</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label for="edit_move_in_date" class="form-label">Дата на настаняване:</label>
@@ -365,13 +416,13 @@ try {
 
         function showEditModal(resident) {
             document.getElementById('edit_id').value = resident.id;
-            document.getElementById('edit_apartment_id').value = resident.apartment_id;
+            document.getElementById('edit_property_id').value = resident.property_id;
             document.getElementById('edit_first_name').value = resident.first_name;
+            document.getElementById('edit_middle_name').value = resident.middle_name || '';
             document.getElementById('edit_last_name').value = resident.last_name;
             document.getElementById('edit_phone').value = resident.phone;
             document.getElementById('edit_email').value = resident.email;
-            document.getElementById('edit_is_owner').checked = resident.is_owner == 1;
-            document.getElementById('edit_is_primary').checked = resident.is_primary == 1;
+            document.getElementById('edit_status').value = resident.status;
             document.getElementById('edit_move_in_date').value = resident.move_in_date;
             document.getElementById('edit_move_out_date').value = resident.move_out_date || '';
             document.getElementById('edit_notes').value = resident.notes;

@@ -23,23 +23,14 @@ function getMonthYear($date) {
     ];
 }
 
-// Функция за проверка на задължения
-function checkDebt($apartmentId) {
+// Функция за проверка на задължения (нов ledger вариант)
+function checkDebt($propertyId) {
     global $pdo;
-    
     try {
-        $stmt = $pdo->prepare("
-            SELECT 
-                SUM(f.amount) as total_fees,
-                COALESCE(SUM(p.amount), 0) as total_payments
-            FROM fees f
-            LEFT JOIN payments p ON f.apartment_id = p.apartment_id
-            WHERE f.apartment_id = ?
-        ");
-        $stmt->execute([$apartmentId]);
-        $result = $stmt->fetch();
-        
-        return ($result['total_fees'] - $result['total_payments']);
+        $stmt = $pdo->prepare("SELECT SUM(CASE WHEN type='credit' THEN amount ELSE -amount END) as balance FROM property_ledger WHERE property_id = ?");
+        $stmt->execute([$propertyId]);
+        $balance = $stmt->fetchColumn();
+        return $balance ?: 0;
     } catch (PDOException $e) {
         error_log("Debt Check Error: " . $e->getMessage());
         return false;

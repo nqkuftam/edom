@@ -21,13 +21,17 @@ if (!isset($_SESSION['user_id']) || !isLoggedIn()) {
 $error = '';
 $success = '';
 
+$cashboxes = [];
+$notes = [];
+
 try {
     // Вземане на текущата сграда
     $currentBuilding = getCurrentBuilding();
+    error_log('Текуща сграда: ' . print_r($currentBuilding, true));
     
     // Вземане на статистики
     $totalBuildings = 0;
-    $totalApartments = 0;
+    $totalProperties = 0;
     $totalDebts = 0;
     $recentPayments = [];
     
@@ -35,9 +39,9 @@ try {
     $stmt = $pdo->query("SELECT COUNT(*) FROM buildings");
     $totalBuildings = $stmt->fetchColumn();
     
-    // Общ брой апартаменти
-    $stmt = $pdo->query("SELECT COUNT(*) FROM apartments");
-    $totalApartments = $stmt->fetchColumn();
+    // Общ брой имоти
+    $stmt = $pdo->query("SELECT COUNT(*) FROM properties");
+    $totalProperties = $stmt->fetchColumn();
     
     // Общ дълг
     $stmt = $pdo->query("
@@ -51,7 +55,7 @@ try {
     $stmt = $pdo->query("
         SELECT p.*, a.number as apartment_number, b.name as building_name
         FROM payments p
-        JOIN apartments a ON p.apartment_id = a.id
+        JOIN properties a ON p.property_id = a.id
         JOIN buildings b ON a.building_id = b.id
         ORDER BY p.payment_date DESC
         LIMIT 5
@@ -59,20 +63,47 @@ try {
     $recentPayments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Зареждам бележките от базата за текущата сграда:
-    $notes = [];
     if ($currentBuilding) {
         $stmt = $pdo->prepare("SELECT n.*, u.username FROM building_notes n LEFT JOIN users u ON n.user_id = u.id WHERE n.building_id = ? ORDER BY n.created_at DESC");
         $stmt->execute([$currentBuilding['id']]);
         $notes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        error_log('SQL за бележки: ' . $stmt->queryString . ' | building_id: ' . $currentBuilding['id']);
+        error_log('Резултат бележки: ' . print_r($notes, true));
     }
     
     // Вземане на касите за текущата сграда
-    $cashboxes = [];
     if ($currentBuilding) {
         $stmt = $pdo->prepare("SELECT * FROM cashboxes WHERE building_id = ?");
         $stmt->execute([$currentBuilding['id']]);
         $cashboxes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        error_log('SQL за каси: ' . $stmt->queryString . ' | building_id: ' . $currentBuilding['id']);
+        error_log('Резултат каси: ' . print_r($cashboxes, true));
     }
+    
+    // 2. Изчисли салдото на всяка каса
+    foreach ($cashboxes as &$cb) {
+        $cb_id = $cb['id'];
+        // 1. Платени такси
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM fee_properties WHERE cashbox_id = ? AND is_paid = 1");
+        $stmt->execute([$cb_id]);
+        $paid_fees = $stmt->fetchColumn();
+        // 2. Тегления
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM withdrawals WHERE cashbox_id = ?");
+        $stmt->execute([$cb_id]);
+        $withdrawn = $stmt->fetchColumn();
+        // 3. Връщания на тегления
+        $stmt = $pdo->prepare("
+            SELECT COALESCE(SUM(wr.amount),0) 
+            FROM withdrawal_returns wr 
+            JOIN withdrawals w ON wr.withdrawal_id = w.id 
+            WHERE w.cashbox_id = ?
+        ");
+        $stmt->execute([$cb_id]);
+        $returned = $stmt->fetchColumn();
+        // 4. Салдо = платени такси - тегления + връщания
+        $cb['balance'] = $paid_fees - $withdrawn + $returned;
+    }
+    unset($cb);
     
 } catch (PDOException $e) {
     $error = handlePDOError($e);
@@ -110,6 +141,20 @@ if (
 }
 
 require_once 'includes/styles.php';
+
+// DEBUG: Показване на текуща сграда, бележки и каси
+if (isset(
+    $_GET['debug']) && $_GET['debug'] == 1) {
+    echo '<pre style="background:#fff;color:#000;z-index:9999;position:relative;">';
+    echo "\n\n==== DEBUG ====";
+    echo "\n\nТекуща сграда:\n";
+    var_dump($currentBuilding);
+    echo "\nБележки:\n";
+    var_dump($notes);
+    echo "\nКаси:\n";
+    var_dump($cashboxes);
+    echo "</pre>";
+}
 ?>
 <!DOCTYPE html>
 <html lang="bg">
@@ -130,15 +175,11 @@ require_once 'includes/styles.php';
     </div>
 
     <div class="container">
-    <?php if ($currentBuilding): ?>
-        <div class="building-info">
-            <h4 class="d-flex align-items-center">
-                <i class="fas fa-building me-2"></i> Текуща сграда: 
+        <div class="row mb-3">
+            <div class="col-12">
                 <?php echo renderBuildingSelector(); ?>
-            </h4>
-            <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
+            </div>
         </div>
-    <?php endif; ?>
         <div class="row">
             <!-- Лява колона -->
             <div class="col-md-4 col-lg-3 mb-4">

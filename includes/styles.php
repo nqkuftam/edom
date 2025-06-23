@@ -201,90 +201,83 @@
         background-color: var(--primary-color);
         color: var(--text-light);
         border-radius: var(--border-radius) var(--border-radius) 0 0;
-        border-bottom: none;
-        padding-bottom: 0;
     }
 
     .modal-title {
         font-weight: 600;
     }
 
-    .modal-body {
-        padding-top: 0;
-    }
-
-    .modal-footer {
-        border-top: none;
-        padding-top: 0;
-    }
-
     .building-info {
         background-color: white;
+        padding: 1rem;
         border-radius: var(--border-radius);
+        margin-bottom: 1rem;
         box-shadow: var(--box-shadow);
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        flex-wrap: wrap;
-        gap: 1rem;
     }
 
     .building-info h4 {
-        margin: 0;
-        font-size: 1.2rem;
+        margin: 0 0 0.5rem 0;
         color: var(--primary-color);
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        text-align: center;
-    }
-
-    .building-info h4 form {
-        display: inline-flex !important;
-        margin: 0;
-        padding: 0;
-        align-items: center;
     }
 
     .building-info p {
         margin: 0;
-        color: #666;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+        color: var(--secondary-color);
     }
 
-    .custom-building-selector {
-        width: auto !important; /* Презаписва inline style */
-        min-width: 150px; /* Минимална ширина */
-        max-width: 250px; /* Максимална ширина */
-        /* display: inline-block; */ /* Премахнато, flexbox ще се грижи за това */
-        border-radius: 25px; /* По-заоблени ъгли */
-        padding: 0.4rem 1.2rem; /* По-малък паддинг */
-        font-size: 0.9rem; /* По-малък шрифт */
-        margin-top: 2px; /* Добавено за по-добро вертикално подравняване */
-        border: 1px solid var(--accent-color); /* Цвят на рамката */
-        box-shadow: 0 2px 5px rgba(52, 152, 219, 0.2); /* Лека сянка */
+    .table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 1rem;
         background-color: white;
-        -webkit-appearance: none; /* Премахва стандартния стрелки */
-        -moz-appearance: none;
-        appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%233498db' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3E%3C/svg%3E");
-        background-repeat: no-repeat;
-        background-position: right 0.75rem center;
-        background-size: 16px 12px;
-        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        border-radius: var(--border-radius);
+        overflow: hidden;
     }
 
-    .custom-building-selector:focus {
-        border-color: #2980b9;
-        box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
-        outline: 0;
+    .table th,
+    .table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
     }
 
-    /* При нужда за адаптивност */
+    .table th {
+        background-color: var(--primary-color);
+        color: var(--text-light);
+        font-weight: 600;
+    }
+
+    .table tr:hover {
+        background-color: #f8f9fa;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background-color: white;
+        padding: 1.5rem;
+        border-radius: var(--border-radius);
+        box-shadow: var(--box-shadow);
+        text-align: center;
+    }
+
+    .stat-card h3 {
+        margin: 0;
+        color: var(--primary-color);
+        font-size: 2rem;
+    }
+
+    .stat-card p {
+        margin: 0.5rem 0 0 0;
+        color: var(--secondary-color);
+        font-size: 1.1rem;
+    }
+
     @media (max-width: 768px) {
         .container {
             padding: 8px;
@@ -344,15 +337,15 @@
         .modal-content {
             padding: 0.5rem;
         }
-        .building-info {
-            flex-direction: column;
-            align-items: flex-start;
+        .desktop-nav { display: none !important; }
+        .burger-menu { 
+            display: flex !important;
+            position: fixed;
+            top: 1.2rem;
+            right: 1.2rem;
+            z-index: 1300;
         }
-        .custom-building-selector {
-            width: 100% !important;
-            max-width: none;
-            margin-top: 0.5rem;
-        }
+        .main-nav { position: relative; }
     }
 
     @media (max-width: 480px) {
@@ -375,5 +368,103 @@
     /* Стил за лявата колона с бележки и управление */
     .col-md-4.col-lg-3 {
         padding-right: 30px;
+    }
+
+    /* --- Мобилно бургер меню и странична навигация --- */
+    .burger-menu {
+        display: none;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 44px;
+        height: 44px;
+        background: none;
+        border: none;
+        cursor: pointer;
+        z-index: 1201;
+    }
+    .burger-menu span {
+        display: block;
+        width: 28px;
+        height: 4px;
+        margin: 4px 0;
+        background: var(--text-light);
+        border-radius: 2px;
+        transition: 0.3s;
+    }
+    @media (max-width: 768px) {
+        .desktop-nav { display: none !important; }
+        .burger-menu { 
+            display: flex !important;
+            position: fixed;
+            top: 0.4rem;
+            right: 1.2rem;
+            z-index: 1300;
+        }
+        .main-nav { position: relative; }
+        .mobile-nav-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 1200;
+            transition: 0.3s;
+        }
+        .mobile-nav-overlay.show { display: block; }
+        .mobile-nav {
+            position: fixed;
+            top: 0; right: 0;
+            width: 80vw;
+            max-width: 320px;
+            height: 100vh;
+            background: var(--primary-color);
+            color: var(--text-light);
+            box-shadow: -2px 0 8px rgba(0,0,0,0.15);
+            z-index: 1201;
+            transform: translateX(100%);
+            transition: transform 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+        .mobile-nav.open { transform: translateX(0); }
+        .mobile-nav-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid #34495e;
+        }
+        .mobile-nav-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        .close-mobile-nav {
+            background: none;
+            border: none;
+            color: var(--text-light);
+            font-size: 2rem;
+            cursor: pointer;
+        }
+        .mobile-nav-links {
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            gap: 0.7rem;
+        }
+        .mobile-nav-links a {
+            color: var(--text-light);
+            text-decoration: none;
+            font-size: 1.1rem;
+            padding: 0.7rem 0.5rem;
+            border-radius: var(--border-radius);
+            transition: background 0.2s;
+        }
+        .mobile-nav-links a.active, .mobile-nav-links a:hover {
+            background: var(--accent-color);
+            color: #fff;
+        }
+        .mobile-nav-links .btn-danger {
+            margin-top: 1rem;
+        }
     }
 </style> 

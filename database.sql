@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS buildings (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Таблица за апартаменти
-CREATE TABLE IF NOT EXISTS apartments (
+-- Таблица за имоти
+CREATE TABLE IF NOT EXISTS properties (
     id INT AUTO_INCREMENT PRIMARY KEY,
     building_id INT NOT NULL,
     number VARCHAR(20) NOT NULL,
@@ -34,9 +34,10 @@ CREATE TABLE IF NOT EXISTS apartments (
     owner_email VARCHAR(100),
     area DECIMAL(10,2) NOT NULL,
     people_count INT NOT NULL DEFAULT 1,
+    ideal_parts DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Идеални части от сградата в проценти',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (building_id) REFERENCES buildings(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_apartment (building_id, number)
+    UNIQUE KEY unique_property (building_id, number)
 );
 
 -- Таблица за такси (обща информация)
@@ -45,31 +46,31 @@ CREATE TABLE IF NOT EXISTS fees (
     type ENUM('monthly','temporary') DEFAULT 'monthly',
     total_amount FLOAT NOT NULL,
     description TEXT,
-    distribution_method ENUM('equal','by_people','by_area') DEFAULT 'equal',
+    distribution_method ENUM('equal','by_people','by_area','by_ideal_parts') DEFAULT 'equal',
     months_count INT DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Таблица за разпределение по апартаменти
-CREATE TABLE IF NOT EXISTS fee_apartments (
+-- Таблица за разпределение по имоти
+CREATE TABLE IF NOT EXISTS fee_properties (
     id INT AUTO_INCREMENT PRIMARY KEY,
     fee_id INT NOT NULL,
-    apartment_id INT NOT NULL,
+    property_id INT NOT NULL,
     amount DECIMAL(10,2) NOT NULL,
     FOREIGN KEY (fee_id) REFERENCES fees(id) ON DELETE CASCADE,
-    FOREIGN KEY (apartment_id) REFERENCES apartments(id) ON DELETE CASCADE
+    FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE
 );
 
 -- Таблица за плащания
 CREATE TABLE IF NOT EXISTS payments (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    apartment_id INT NOT NULL,
+    property_id INT NOT NULL,
     amount DECIMAL(10,2) NOT NULL,
     payment_date DATE NOT NULL,
     payment_method VARCHAR(50) NOT NULL,
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (apartment_id) REFERENCES apartments(id) ON DELETE CASCADE
+    FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE
 );
 
 -- Таблица за бележки към сграда
@@ -101,6 +102,17 @@ CREATE TABLE IF NOT EXISTS cashbox_transactions (
     type ENUM('in','out') NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (cashbox_id) REFERENCES cashboxes(id) ON DELETE CASCADE
+);
+
+-- Журнал на движенията по балансите на имотите
+CREATE TABLE IF NOT EXISTS property_ledger (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    property_id INT NOT NULL,
+    type ENUM('credit', 'debit') NOT NULL, -- credit=приход, debit=разход
+    amount DECIMAL(10,2) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE
 );
 
 -- Създаване на администраторски акаунт (парола: admin123)

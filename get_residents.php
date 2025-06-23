@@ -17,19 +17,19 @@ if (!isset($_SESSION['user_id']) || !isLoggedIn()) {
 }
 
 try {
-    $apartment_id = (int)($_GET['apartment_id'] ?? 0);
+    $property_id = (int)($_GET['property_id'] ?? 0);
     
-    if ($apartment_id <= 0) {
-        throw new Exception('Невалиден ID на апартамент');
+    if ($property_id <= 0) {
+        throw new Exception('Невалиден ID на имот');
     }
     
-    // Вземане на обитателите за апартамента
+    // Вземане на обитателите за имота
     $stmt = $pdo->prepare("
         SELECT * FROM residents 
-        WHERE apartment_id = ? 
-        ORDER BY is_owner DESC, is_primary DESC, last_name, first_name
+        WHERE property_id = ? 
+        ORDER BY FIELD(status, 'owner', 'tenant', 'user'), last_name, first_name
     ");
-    $stmt->execute([$apartment_id]);
+    $stmt->execute([$property_id]);
     $residents = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // Връщане на резултата като JSON

@@ -44,23 +44,24 @@ function renderBuildingSelector() {
         $currentBuilding = getCurrentBuilding();
     }
 
-    $html = '<form method="POST" action="set_building.php" class="d-flex align-items-center">';
-    $html .= '<select name="building_id" id="building_id" class="form-select custom-building-selector" onchange="this.form.submit()">';
-    
+    // Bootstrap input-group с икона и form-select
+    $html = '<form method="POST" action="set_building.php" class="mb-3" style="max-width:400px;">';
+    $html .= '<div class="input-group">';
+    $html .= '<label class="input-group-text" for="building_id"><i class="fas fa-building"></i> Избери сграда</label>';
+    $html .= '<select name="building_id" id="building_id" class="form-select" onchange="this.form.submit()">';
     foreach ($buildings as $building) {
         $selected = ($currentBuilding && $currentBuilding['id'] == $building['id']) ? 'selected' : '';
         $html .= sprintf(
-            '<option value="%d" %s>%s</option>',
+            '<option value="%d" %s>%s - %s</option>',
             $building['id'],
             $selected,
-            htmlspecialchars($building['name'])
+            htmlspecialchars($building['name']),
+            htmlspecialchars($building['address'])
         );
     }
-    
     $html .= '</select>';
-    // Премахнат бутон 'Избери'
+    $html .= '</div>';
     $html .= '</form>';
-    
     return $html;
 }
 ?> 

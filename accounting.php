@@ -1,6 +1,41 @@
-<?php
-header('X-Frame-Options: SAMEORIGIN');
-header('Cross-Origin-Resource-Policy: same-origin');
+
+// В секцията, където зареждате имотите, добавете occupants в заявката:
+$stmt = $pdo->prepare("
+    SELECT a.*, b.name AS building_name,
+        (SELECT COUNT(*) FROM residents res WHERE res.property_id = a.id AND res.move_out_date IS NULL) as residents_count,
+        a.occupants
+    FROM properties a
+    JOIN buildings b ON a.building_id = b.id
+    WHERE a.building_id = ?
+    ORDER BY a.number
+");
+
+// В секцията за добавяне на нова такса, добавете нова опция за разпределение:
+<select class="form-control" id="distribution_method" name="distribution_method" required>
+    <option value="equal">Поравно</option>
+    <option value="by_area">По площ</option>
+    <option value="by_ideal_parts">По идеални части</option>
+    <option value="per_occupant">По брой обитатели</option>
+</select>
+
+// В PHP кода за обработка на добавяне на нова такса, добавете нова логика за разпределение по брой обитатели:
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_fee') {
+    // ... (съществуващ код)
+    
+    if ($distribution_method === 'per_occupant') {
+        $total_occupants = array_sum(array_column($properties, 'occupants'));
+        if ($total_occupants > 0) {
+            foreach ($properties as $property) {
+                $property_amount = ($amount * $property['occupants']) / $total_occupants;
+                $amounts[$property['id']] = round($property_amount, 2);
+            }
+        } else {
+            $error = showError('Няма регистрирани обитатели в имотите.');
+        }
+    }
+    
+    // ... (останалата част от кода)
+}<?php
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -71,74 +106,101 @@ if (!isset($_SESSION['user_id']) || !isLoggedIn()) {
     exit();
 }
 
+// Масив за превод на типове имоти
+$PROPERTY_TYPES_BG = [
+    'apartment' => 'Апартамент',
+    'garage' => 'Гараж',
+    'room' => 'Стая',
+    'office' => 'Офис',
+    'shop' => 'Магазин',
+    'warehouse' => 'Склад',
+];
+
+// Масив за кратки типове имоти (BG)
+$PROPERTY_TYPES_BG_SHORT = [
+    'apartment' => 'Ап.',
+    'garage' => 'Гараж',
+    'room' => 'Стая',
+    'office' => 'Офис',
+    'shop' => 'Магазин',
+    'warehouse' => 'Склад',
+    'parking' => 'Паркомясто',
+];
+
 // --- ДОБАВЯМ ЛОГИКАТА ЗА ПЛАЩАНИЯ ---
 try {
-    // Създаване на таблица за баланси на апартаменти, ако не съществува
-    $pdo->exec("CREATE TABLE IF NOT EXISTS apartment_balances (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        apartment_id INT NOT NULL,
-        balance DECIMAL(10,2) DEFAULT 0.00,
-        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        FOREIGN KEY (apartment_id) REFERENCES apartments(id) ON DELETE CASCADE
-    )");
-
-    // Взимане на апартаментите само за текущата сграда
+    // Вземане на апартаментите само за текущата сграда
     if ($currentBuilding) {
         $stmt = $pdo->prepare("
-            SELECT a.*, b.name AS building_name, ab.balance
-            FROM apartments a
+            SELECT a.*, b.name AS building_name,
+                (SELECT COUNT(*) FROM residents res WHERE res.property_id = a.id AND res.move_out_date IS NULL) as residents_count
+            FROM properties a
             JOIN buildings b ON a.building_id = b.id
-            LEFT JOIN apartment_balances ab ON a.id = ab.apartment_id
             WHERE a.building_id = ?
             ORDER BY a.number
         ");
         $stmt->execute([$currentBuilding['id']]);
-        $apartments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } else {
-        $apartments = [];
-    }
-
-    // Ако някой апартамент няма запис в балансите, създаваме такъв
-    foreach ($apartments as $apartment) {
-        if (!isset($apartment['balance'])) {
-            $stmt = $pdo->prepare("INSERT INTO apartment_balances (apartment_id, balance) VALUES (?, 0)");
-            $stmt->execute([$apartment['id']]);
-            $apartment['balance'] = 0;
+        $properties = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // Вземи баланса за всеки апартамент от ledger
+        foreach ($properties as &$property) {
+            $stmt2 = $pdo->prepare("SELECT SUM(CASE WHEN type='credit' THEN amount ELSE -amount END) FROM property_ledger WHERE property_id = ?");
+            $stmt2->execute([$property['id']]);
+            $property['balance'] = $stmt2->fetchColumn() ?: 0;
         }
+        unset($property);
+    } else {
+        $properties = [];
     }
 
-    // Вземане на всички неплатени такси с информация за апартамент и сграда
+    // Вземане на всички неплатени такси с информация за апартамент и сграда (включително индивидуалните с fee_id = NULL)
     $stmt = $pdo->query("
-        SELECT fa.id as fa_id, f.*, fa.apartment_id, a.number AS apartment_number, b.name AS building_name, fa.amount
-        FROM fees f 
-        JOIN fee_apartments fa ON fa.fee_id = f.id
-        JOIN apartments a ON fa.apartment_id = a.id
+        SELECT fa.id as fa_id, 
+               CASE 
+                   WHEN fa.fee_id IS NULL THEN fa.description 
+                   ELSE f.description 
+               END as description,
+               CASE 
+                   WHEN fa.fee_id IS NULL THEN fa.created_at 
+                   ELSE f.created_at 
+               END as created_at,
+               CASE 
+                   WHEN fa.fee_id IS NULL THEN 'individual' 
+                   ELSE f.type 
+               END as type,
+               f.id as fee_id,
+               fa.property_id, 
+               a.number AS property_number, 
+               b.name AS building_name, 
+               fa.amount,
+               fa.cashbox_id
+        FROM fee_properties fa
+        LEFT JOIN fees f ON fa.fee_id = f.id
+        JOIN properties a ON fa.property_id = a.id
         JOIN buildings b ON a.building_id = b.id 
-        LEFT JOIN payments p ON p.fee_id = f.id AND p.apartment_id = fa.apartment_id
         WHERE fa.is_paid = 0
-        ORDER BY f.created_at DESC
+        ORDER BY COALESCE(f.created_at, fa.created_at) DESC
     ");
-    $unpaid_fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $unpaid_fees_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // --- ЗАРЕЖДАНЕ НА ПЛАЩАНИЯТА ЗА ТЕКУЩАТА СГРАДА ---
     if (isset($currentBuilding) && $currentBuilding) {
         $stmt = $pdo->prepare("
-            SELECT p.*, a.number AS apartment_number, b.name AS building_name
+            SELECT p.*, a.number AS property_number, b.name AS building_name
             FROM payments p
-            JOIN apartments a ON p.apartment_id = a.id
+            JOIN properties a ON p.property_id = a.id
             JOIN buildings b ON a.building_id = b.id
             WHERE a.building_id = ?
-            ORDER BY p.payment_date DESC
+            ORDER BY p.created_at DESC
         ");
         $stmt->execute([$currentBuilding['id']]);
         $payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
         $stmt = $pdo->query("
-            SELECT p.*, a.number AS apartment_number, b.name AS building_name
+            SELECT p.*, a.number AS property_number, b.name AS building_name
             FROM payments p
-            JOIN apartments a ON p.apartment_id = a.id
+            JOIN properties a ON p.property_id = a.id
             JOIN buildings b ON a.building_id = b.id
-            ORDER BY p.payment_date DESC
+            ORDER BY p.created_at DESC
         ");
         $payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -151,8 +213,8 @@ try {
             SELECT f.*, c.name AS cashbox_name
             FROM fees f
             LEFT JOIN cashboxes c ON f.cashbox_id = c.id
-            JOIN fee_apartments fa ON fa.fee_id = f.id
-            JOIN apartments a ON fa.apartment_id = a.id
+            JOIN fee_properties fa ON fa.fee_id = f.id
+            JOIN properties a ON fa.property_id = a.id
             WHERE a.building_id = ?
             GROUP BY f.id
             ORDER BY f.created_at DESC
@@ -176,11 +238,109 @@ try {
     }
 
     // Изчисляване на общите задължения за всеки апартамент
-    $apartmentDebts = [];
-    foreach ($unpaid_fees as $fee) {
-        $aid = $fee['apartment_id'];
-        if (!isset($apartmentDebts[$aid])) $apartmentDebts[$aid] = 0;
-        $apartmentDebts[$aid] += $fee['amount'];
+    $propertyDebts = [];
+    foreach ($unpaid_fees_list as $fee) {
+        $aid = $fee['property_id'];
+        if (!isset($propertyDebts[$aid])) $propertyDebts[$aid] = 0;
+        $propertyDebts[$aid] += $fee['amount'];
+    }
+
+    // 1. Вземи всички тегления (withdrawals) за касите на текущата сграда
+    $withdrawals = [];
+    if ($currentBuilding) {
+        $stmt = $pdo->prepare("SELECT * FROM withdrawals WHERE cashbox_id IN (SELECT id FROM cashboxes WHERE building_id = ?)");
+        $stmt->execute([$currentBuilding['id']]);
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $withdrawals[$row['cashbox_id']][] = $row;
+        }
+    }
+    
+    // 2. Вземи всички връщания на тегления (withdrawal_returns)
+    $withdrawal_returns = [];
+    if ($currentBuilding) {
+        $stmt = $pdo->prepare("
+            SELECT wr.*, w.cashbox_id 
+            FROM withdrawal_returns wr 
+            JOIN withdrawals w ON wr.withdrawal_id = w.id 
+            WHERE w.cashbox_id IN (SELECT id FROM cashboxes WHERE building_id = ?)
+        ");
+        $stmt->execute([$currentBuilding['id']]);
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $withdrawal_returns[$row['withdrawal_id']][] = $row;
+        }
+    }
+    // 2. Изчисли салдото на всяка каса
+    foreach ($cashboxes as &$cb) {
+        $cb_id = $cb['id'];
+        // 1. Платени такси
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM fee_properties WHERE cashbox_id = ? AND is_paid = 1");
+        $stmt->execute([$cb_id]);
+        $paid_fees = $stmt->fetchColumn();
+        // 2. Тегления
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM withdrawals WHERE cashbox_id = ?");
+        $stmt->execute([$cb_id]);
+        $withdrawn = $stmt->fetchColumn();
+        // 3. Връщания на тегления
+        $stmt = $pdo->prepare("
+            SELECT COALESCE(SUM(wr.amount),0) 
+            FROM withdrawal_returns wr 
+            JOIN withdrawals w ON wr.withdrawal_id = w.id 
+            WHERE w.cashbox_id = ?
+        ");
+        $stmt->execute([$cb_id]);
+        $returned = $stmt->fetchColumn();
+        // 4. Салдо = платени такси - тегления + връщания
+        $cb['balance'] = $paid_fees - $withdrawn + $returned;
+    }
+    unset($cb);
+
+    // Зареждане на активните задължения по имоти за таблицата
+    $active_debts_by_property = [];
+    if ($currentBuilding) {
+        // Вземи всички активни задължения за текущата сграда (включително индивидуалните с fee_id = NULL)
+        $stmt = $pdo->prepare("
+            SELECT 
+                p.id as property_id,
+                p.number as property_number,
+                p.type as property_type,
+                f.id as fee_id,
+                CASE 
+                    WHEN f.id IS NULL THEN 'individual' 
+                    ELSE f.type 
+                END as fee_type,
+                CASE 
+                    WHEN f.id IS NULL THEN fp.description 
+                    ELSE f.description 
+                END as fee_description,
+                f.distribution_method,
+                fp.amount as debt_amount,
+                fp.is_paid
+            FROM properties p
+            JOIN fee_properties fp ON p.id = fp.property_id
+            LEFT JOIN fees f ON fp.fee_id = f.id
+            WHERE p.building_id = ? AND fp.is_paid = 0
+            ORDER BY p.number, COALESCE(f.created_at, fp.created_at) DESC
+        ");
+        $stmt->execute([$currentBuilding['id']]);
+        $active_debts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Групиране по имоти
+        foreach ($active_debts as $debt) {
+            $property_id = $debt['property_id'];
+            if (!isset($active_debts_by_property[$property_id])) {
+                $active_debts_by_property[$property_id] = [
+                    'property' => [
+                        'id' => $debt['property_id'],
+                        'number' => $debt['property_number'],
+                        'type' => $debt['property_type']
+                    ],
+                    'debts' => [],
+                    'total_amount' => 0
+                ];
+            }
+            $active_debts_by_property[$property_id]['debts'][] = $debt;
+            $active_debts_by_property[$property_id]['total_amount'] += $debt['debt_amount'];
+        }
     }
 } catch (PDOException $e) {
     $error = handlePDOError($e);
@@ -205,16 +365,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("INSERT INTO fees (cashbox_id, type, amount, description, distribution_method, months_count) VALUES (?, ?, ?, ?, ?, ?)");
                 $stmt->execute([$cashbox_id, $type, $amount, $description, $distribution_method, $months_count]);
                 $fee_id = $pdo->lastInsertId();
-                $stmt2 = $pdo->prepare("INSERT INTO fee_apartments (fee_id, apartment_id, amount) VALUES (?, ?, ?)");
+                $stmt2 = $pdo->prepare("INSERT INTO fee_properties (fee_id, property_id, amount, cashbox_id) VALUES (?, ?, ?, ?)");
                 $inserted = false;
-                foreach ($amounts as $apartment_id => $a) {
-                    if (isset($charge[$apartment_id]) && is_numeric($a) && $a !== '') {
-                        $stmt2->execute([$fee_id, $apartment_id, $a]);
+                foreach ($amounts as $property_id => $a) {
+                    if (isset($charge[$property_id]) && is_numeric($a) && $a !== '') {
+                        $stmt2->execute([$fee_id, $property_id, $a, $cashbox_id]);
                         $inserted = true;
                     }
                 }
                 if (!$inserted) {
-                    throw new Exception('Няма валидни суми за апартаментите!');
+                    throw new Exception('Няма валидни суми за имотите!');
                 }
                 $pdo->commit();
                 $success = showSuccess('Таксата и разпределението са добавени успешно.');
@@ -245,16 +405,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         isset($_POST['action']) && $_POST['action'] === 'add_payment'
     ) {
         error_log('POST add_payment: ' . print_r($_POST, true)); // Дебъг лог
-        $apartment_id = (int)($_POST['apartment_id'] ?? 0);
+        $property_id = (int)($_POST['property_id'] ?? 0);
         $selected_fees = $_POST['selected_fees'] ?? [];
         $payment_date = $_POST['payment_date'] ?? date('Y-m-d');
         $payment_method = $_POST['payment_method'] ?? '';
         $notes = $_POST['notes'] ?? '';
-        if ($apartment_id > 0 && is_array($selected_fees) && count($selected_fees) > 0) {
+        if ($property_id > 0 && is_array($selected_fees) && count($selected_fees) > 0) {
             // Вземи сумите за избраните такси
             $placeholders = implode(',', array_fill(0, count($selected_fees), '?'));
-            $stmt = $pdo->prepare("SELECT id, amount, fee_id FROM fee_apartments WHERE id IN ($placeholders) AND apartment_id = ? AND is_paid = 0");
-            $stmt->execute(array_merge($selected_fees, [$apartment_id]));
+            $stmt = $pdo->prepare("SELECT id, amount, fee_id FROM fee_properties WHERE id IN ($placeholders) AND property_id = ? AND is_paid = 0");
+            $stmt->execute(array_merge($selected_fees, [$property_id]));
             $fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
             error_log('SELECTED FEES RESULT: ' . print_r($fees, true)); // Дебъг лог
             if (!$fees || count($fees) === 0) {
@@ -268,24 +428,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 if ($payment_method === 'от баланс') {
                     // Проверка за баланс
-                    $stmt = $pdo->prepare("SELECT balance FROM apartment_balances WHERE apartment_id = ?");
-                    $stmt->execute([$apartment_id]);
+                    $stmt = $pdo->prepare("SELECT SUM(CASE WHEN type='credit' THEN amount ELSE -amount END) FROM property_ledger WHERE property_id = ?");
+                    $stmt->execute([$property_id]);
                     $balance = $stmt->fetchColumn();
                     if ($total > $balance) {
                         $error = showError('Недостатъчен баланс!');
                     } else {
                         $pdo->beginTransaction();
                         try {
-                            // Намали баланса
-                            $stmt = $pdo->prepare("UPDATE apartment_balances SET balance = balance - ? WHERE apartment_id = ?");
-                            $stmt->execute([$total, $apartment_id]);
+                            // Намали баланса (ledger)
+                            $stmt = $pdo->prepare("INSERT INTO property_ledger (property_id, type, amount, description) VALUES (?, 'debit', ?, ?)");
+                            $stmt->execute([$property_id, $total, 'Плащане на такси']);
                             // Маркирай таксите като платени
-                            $stmt = $pdo->prepare("UPDATE fee_apartments SET is_paid = 1 WHERE id IN ($placeholders)");
+                            $stmt = $pdo->prepare("UPDATE fee_properties SET is_paid = 1 WHERE id IN ($placeholders)");
                             $stmt->execute($selected_fees);
                             // Създай запис в payments за всяка такса
                             foreach ($fees as $f) {
-                                $stmt = $pdo->prepare("INSERT INTO payments (apartment_id, fee_id, amount, payment_date, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)");
-                                $stmt->execute([$apartment_id, $f['fee_id'], $f['amount'], $payment_date, $payment_method, $notes]);
+                                $stmt = $pdo->prepare("INSERT INTO payments (property_id, fee_id, amount, payment_date, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)");
+                                $stmt->execute([$property_id, $f['fee_id'], $f['amount'], $payment_date, $payment_method, $notes]);
                             }
                             $pdo->commit();
                             $success = showSuccess('Плащането от баланс е успешно.');
@@ -297,16 +457,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     }
                 } else {
-                    // Стандартно плащане
+                    // Стандартно плащане (без ledger)
                     $pdo->beginTransaction();
                     try {
-                        // Маркирай таксите като платени
-                        $stmt = $pdo->prepare("UPDATE fee_apartments SET is_paid = 1 WHERE id IN ($placeholders)");
+                        $stmt = $pdo->prepare("UPDATE fee_properties SET is_paid = 1 WHERE id IN ($placeholders)");
                         $stmt->execute($selected_fees);
-                        // Създай запис в payments за всяка такса
                         foreach ($fees as $f) {
-                            $stmt = $pdo->prepare("INSERT INTO payments (apartment_id, fee_id, amount, payment_date, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)");
-                            $stmt->execute([$apartment_id, $f['fee_id'], $f['amount'], $payment_date, $payment_method, $notes]);
+                            $stmt = $pdo->prepare("INSERT INTO payments (property_id, fee_id, amount, payment_date, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)");
+                            $stmt->execute([$property_id, $f['fee_id'], $f['amount'], $payment_date, $payment_method, $notes]);
                         }
                         $pdo->commit();
                         $success = showSuccess('Плащането е успешно.');
@@ -328,20 +486,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SERVER['REQUEST_METHOD'] === 'POST' &&
         isset($_POST['action']) && $_POST['action'] === 'add_to_balance'
     ) {
-        $apartment_id = (int)($_POST['apartment_id'] ?? 0);
+        $property_id = (int)($_POST['property_id'] ?? 0);
         $fee_id = (int)($_POST['fee_id'] ?? 0);
         $amount = (float)($_POST['amount'] ?? 0);
-        if ($apartment_id > 0 && $fee_id > 0 && $amount > 0) {
+        if ($property_id > 0 && $fee_id > 0 && $amount > 0) {
             $pdo->beginTransaction();
             try {
                 // Добави към баланса
-                $stmt = $pdo->prepare("UPDATE apartment_balances SET balance = balance + ? WHERE apartment_id = ?");
-                $stmt->execute([$amount, $apartment_id]);
+                $stmt = $pdo->prepare("UPDATE property_ledger SET amount = amount + ? WHERE property_id = ? AND fee_id = ?");
+                $stmt->execute([$amount, $property_id, $fee_id]);
                 // Маркирай таксата като платена
-                $stmt = $pdo->prepare("UPDATE fee_apartments SET is_paid = 1 WHERE fee_id = ? AND apartment_id = ?");
-                $stmt->execute([$fee_id, $apartment_id]);
+                $stmt = $pdo->prepare("UPDATE fee_properties SET is_paid = 1 WHERE fee_id = ? AND property_id = ?");
+                $stmt->execute([$fee_id, $property_id]);
                 $pdo->commit();
-                $success = showSuccess('Сумата е добавена към баланса на апартамента.');
+                $success = showSuccess('Сумата е добавена към баланса на имота.');
                 header('Location: accounting.php?tab=debts');
                 exit();
             } catch (Exception $e) {
@@ -354,6 +512,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Теглене на пари от каса
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'withdraw') {
+    $cashbox_id = (int)($_POST['cashbox_id'] ?? 0);
+    $amount = (float)($_POST['amount'] ?? 0);
+    $description = trim($_POST['description'] ?? '');
+    
+    if ($cashbox_id > 0 && $amount > 0 && !empty($description)) {
+        // Записване на тегленето без проверка за достатъчно средства
+        $stmt = $pdo->prepare("INSERT INTO withdrawals (cashbox_id, amount, description, created_at) VALUES (?, ?, ?, NOW())");
+        $stmt->execute([$cashbox_id, $amount, $description]);
+        $success = 'Тегленето е успешно!';
+        header('Location: accounting.php?tab=budget');
+        exit();
+    } else {
+        $error = 'Моля, попълнете всички полета правилно.';
+    }
+}
+
+// Връщане на теглени пари
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'return_withdrawal') {
+    $withdrawal_id = (int)($_POST['withdrawal_id'] ?? 0);
+    $return_amount = (float)($_POST['return_amount'] ?? 0);
+    $return_description = trim($_POST['return_description'] ?? '');
+    
+    if ($withdrawal_id > 0 && $return_amount > 0 && !empty($return_description)) {
+        // Вземи информация за тегленето
+        $stmt = $pdo->prepare("SELECT * FROM withdrawals WHERE id = ?");
+        $stmt->execute([$withdrawal_id]);
+        $withdrawal = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($withdrawal && $return_amount <= $withdrawal['amount']) {
+            // Проверка дали вече не е върнато повече от тегленото
+            $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount),0) FROM withdrawal_returns WHERE withdrawal_id = ?");
+            $stmt->execute([$withdrawal_id]);
+            $already_returned = $stmt->fetchColumn();
+            
+            if (($already_returned + $return_amount) <= $withdrawal['amount']) {
+                $stmt = $pdo->prepare("INSERT INTO withdrawal_returns (withdrawal_id, amount, description, created_at) VALUES (?, ?, ?, NOW())");
+                $stmt->execute([$withdrawal_id, $return_amount, $return_description]);
+                $success = 'Връщането е успешно!';
+                header('Location: accounting.php?tab=budget');
+                exit();
+            } else {
+                $error = 'Не можете да върнете повече от тегленото!';
+            }
+        } else {
+            $error = 'Невалидно теглене или сума!';
+        }
+    } else {
+        $error = 'Моля, попълнете всички полета правилно.';
+    }
+}
+
 require_once 'includes/styles.php';
 ?>
 <!DOCTYPE html>
@@ -362,305 +573,601 @@ require_once 'includes/styles.php';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Счетоводство | Електронен Домоуправител</title>
-    <!-- Bootstrap 5.1.3 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
-    <!-- Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        /* Add any custom styles here */
-        .header {
-            background-color: #f8f9fa;
-            padding: 1rem 0;
-            margin-bottom: 2rem;
-            border-bottom: 1px solid #dee2e6;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 1.8rem;
-        }
-        .nav-tabs {
-            margin-bottom: 1.5rem;
-        }
-        .card {
-            margin-bottom: 1.5rem;
-            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-        }
-        .card-header {
-            font-weight: 600;
-        }
-        .table {
-            font-size: 0.95rem;
-        }
-        .btn-sm {
-            font-size: 0.85rem;
-            padding: 0.25rem 0.5rem;
-        }
 </head>
 <body>
-<div class="header">
-    <div class="header-content">
-        <h1>Счетоводство</h1>
-        <?php echo renderNavigation('accounting'); ?>
+    <div class="header">
+        <div class="header-content">
+            <h1>Счетоводство</h1>
+            <?php echo renderNavigation('accounting'); ?>
+        </div>
     </div>
-</div>
-<div class="container-fluid mt-4">
-    <h2 class="mb-4"><i class="fas fa-coins"></i> Счетоводство</h2>
-    <?php if ($currentBuilding): ?>
-        <div class="building-info">
-            <h4 class="d-flex align-items-center">
-                <i class="fas fa-building me-2"></i> Текуща сграда: 
-                <?php echo renderBuildingSelector(); ?>
-            </h4>
-            <p><i class="fas fa-map-marker-alt"></i> Адрес: <?php echo htmlspecialchars($currentBuilding['address']); ?></p>
-        </div>
-    <?php endif; ?>
-    <?php if ($error): ?>
-        <div class="alert alert-danger"><?php echo $error; ?></div>
-    <?php endif; ?>
-    <?php if ($success): ?>
-        <div class="alert alert-success"><?php echo $success; ?></div>
-    <?php endif; ?>
+    <div class="container mt-4">
+        <a href="index.php" class="btn btn-secondary mb-3"><i class="fas fa-arrow-left"></i> Назад към таблото</a>
+        <?php echo renderBuildingSelector(); ?>
+        <?php if ($error): ?>
+            <div class="alert alert-danger"><?php echo $error; ?></div>
+        <?php endif; ?>
+        <?php if ($success): ?>
+            <div class="alert alert-success"><?php echo $success; ?></div>
+        <?php endif; ?>
 
-    <!-- НАВИГАЦИОННО МЕНЮ (TABS) -->
-    <ul class="nav nav-tabs mb-3" id="accountingTabs" role="tablist">
-      <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="budget-tab" data-bs-toggle="tab" data-bs-target="#budget" type="button" role="tab">Бюджет</button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports" type="button" role="tab">Отчети</button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="payments-tab" data-bs-toggle="tab" data-bs-target="#payments" type="button" role="tab">Плащания</button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="transactions-tab" data-bs-toggle="tab" data-bs-target="#transactions" type="button" role="tab">Транзакции</button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="debts-tab" data-bs-toggle="tab" data-bs-target="#debts" type="button" role="tab">Задължения</button>
-      </li>
-    </ul>
-    <div class="tab-content" id="accountingTabsContent">
-      <div class="tab-pane fade show active" id="budget" role="tabpanel">
-        <div class="row">
-          <div class="col-lg-6 col-md-12">
-            <!-- Каси -->
-            <div class="card mb-3 shadow-sm" style="font-size:0.95rem;">
-              <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
-                <span><i class="fas fa-cash-register"></i> Каси</span>
-                <button class="btn btn-primary btn-sm" onclick="showAddCashboxModal()"><i class="fas fa-plus"></i> Добави нова каса</button>
-              </div>
-              <div class="card-body p-3">
-                <table class="table table-bordered table-sm mb-0" style="font-size:0.95rem;">
-                  <thead class="table-light"><tr><th>Име</th><th>Баланс</th><th class="text-center">Операции</th></tr></thead>
-                  <tbody>
-                  <?php foreach ($cashboxes as $cb): ?>
-                    <tr>
-                      <td class="fw-bold"><i class="fas fa-wallet me-1"></i> <?php echo htmlspecialchars($cb['name']); ?></td>
-                      <td class="text-end text-primary fw-bold"><?php echo number_format($cb['balance'], 2); ?> лв.</td>
-                      <td class="text-center">
-                        <button class="btn btn-outline-danger btn-sm" onclick="deleteCashbox(<?php echo $cb['id']; ?>)"><i class="fas fa-trash"></i> Изтрий</button>
-                      </td>
-                    </tr>
-                  <?php endforeach; ?>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <!-- Модал за добавяне на нова каса -->
-            <div id="addCashboxModal" class="modal fade" tabindex="-1">
-              <div class="modal-dialog">
-                <div class="modal-content">
-                  <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-plus"></i> Добави нова каса</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <!-- НАВИГАЦИОННО МЕНЮ (TABS) -->
+        <ul class="nav nav-tabs mb-3" id="accountingTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="budget-tab" data-bs-toggle="tab" data-bs-target="#budget" type="button" role="tab">Бюджет</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports" type="button" role="tab">Отчети</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="payments-tab" data-bs-toggle="tab" data-bs-target="#payments" type="button" role="tab">Плащания</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="debts-tab" data-bs-toggle="tab" data-bs-target="#debts" type="button" role="tab">Задължения</button>
+          </li>
+        </ul>
+        <div class="tab-content" id="accountingTabsContent">
+          <div class="tab-pane fade" id="budget" role="tabpanel">
+            <div class="row">
+              <div class="col-lg-6 col-md-12">
+                <!-- Каси -->
+                <div class="card mb-3 shadow-sm" style="font-size:0.95rem;">
+                  <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
+                    <span><i class="fas fa-cash-register"></i> Каси</span>
+                    <button class="btn btn-primary btn-sm" onclick="showAddCashboxModal()"><i class="fas fa-plus"></i> Добави нова каса</button>
                   </div>
-                  <div class="modal-body">
-                    <form method="POST">
-                      <input type="hidden" name="action" value="add_cashbox">
-                      <div class="form-group mb-3">
-                        <label for="cashbox_name" class="form-label">Име на касата:</label>
-                        <input type="text" class="form-control" id="cashbox_name" name="cashbox_name" required>
-                      </div>
-                      <div class="text-end">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
-                        <button type="submit" class="btn btn-primary">Добави</button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="col-lg-6 col-md-12">
-            <!-- Таблица с всички такси (като тази за касите) -->
-            <div class="card mb-3 shadow-sm" style="font-size:0.95rem;">
-              <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
-                <span><i class="fas fa-file-invoice-dollar"></i> Такси</span>
-                <button class="btn btn-primary btn-sm" onclick="showAddFeeModal()"><i class="fas fa-plus"></i> Добави нова такса</button>
-              </div>
-              <div class="card-body p-3">
-                <div class="table-responsive">
-                  <table class="table table-bordered table-sm mb-0" style="font-size:0.95rem;">
-                    <thead class="table-dark">
-                      <tr>
-                        <th>Тип</th>
-                        <th>Метод</th>
-                        <th>Обща сума</th>
-                        <th>Описание</th>
-                        <th>Каса</th>
-                        <th>Действия</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <?php foreach ($fees as $fee): ?>
-                      <?php if ($fee['type'] === 'monthly' || $fee['type'] === 'temporary'): ?>
-                      <tr>
-                        <td><?php echo $fee['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?></td>
-                        <td>
-                          <?php
-                          switch($fee['distribution_method']) {
-                            case 'equal': echo 'Равномерно'; break;
-                            case 'by_people': echo 'По хора'; break;
-                            case 'by_area': echo 'По площ'; break;
-                          }
-                          ?>
-                        </td>
-                        <td><?php echo number_format($fee['amount'], 2); ?></td>
-                        <td><?php echo htmlspecialchars($fee['description']); ?></td>
-                        <td><?php echo isset($cashboxNames[$fee['cashbox_id']]) ? htmlspecialchars($cashboxNames[$fee['cashbox_id']]) : '<span class=\'text-danger\'>Няма</span>'; ?></td>
-                        <td>
-                          <button class="btn btn-danger btn-sm" onclick="deleteFee(<?php echo $fee['id']; ?>)"><i class="fas fa-trash"></i> Изтрий</button>
-                        </td>
-                      </tr>
-                      <?php endif; ?>
+                  <div class="card-body p-3">
+                    <table class="table table-bordered table-sm mb-0" style="font-size:0.95rem;">
+                      <thead class="table-dark"><tr><th>Име</th><th>Баланс</th><th class="text-center">Операции</th></tr></thead>
+                      <tbody>
+                      <?php foreach ($cashboxes as $cb): ?>
+                        <tr>
+                          <td class="fw-bold"><i class="fas fa-wallet me-1"></i> <?php echo htmlspecialchars($cb['name']); ?></td>
+                          <td class="text-end text-primary fw-bold"><?php echo number_format($cb['balance'], 2); ?> лв.</td>
+                          <td class="text-center">
+                            <button class="btn btn-outline-success btn-sm" onclick="showWithdrawModal(<?php echo $cb['id']; ?>, '<?php echo htmlspecialchars(addslashes($cb['name'])); ?>')"><i class="fas fa-arrow-down"></i> Тегли</button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="deleteCashbox(<?php echo $cb['id']; ?>)"><i class="fas fa-trash"></i> Изтрий</button>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td colspan="3">
+                            <div class="small text-muted">История на тегленията:</div>
+                            <?php if (!empty($withdrawals[$cb['id']])): ?>
+                              <ul class="list-group mb-2">
+                                <?php foreach ($withdrawals[$cb['id']] as $w): ?>
+                                  <li class="list-group-item d-flex justify-content-between align-items-center py-1">
+                                    <div class="flex-grow-1">
+                                      <div class="d-flex justify-content-between align-items-center">
+                                    <span><?php echo htmlspecialchars($w['description']); ?> <span class="text-secondary">(<?php echo date('d.m.Y H:i', strtotime($w['created_at'])); ?>)</span></span>
+                                    <span class="fw-bold text-danger">-<?php echo number_format($w['amount'], 2); ?> лв.</span>
+                                      </div>
+                                      <?php 
+                                      // Покажи връщанията за това теглене
+                                      $returns = $withdrawal_returns[$w['id']] ?? [];
+                                      $total_returned = 0;
+                                      foreach ($returns as $r) {
+                                          $total_returned += $r['amount'];
+                                      }
+                                      $remaining = $w['amount'] - $total_returned;
+                                      ?>
+                                      <?php if (!empty($returns)): ?>
+                                        <div class="small text-success mt-1">
+                                          <strong>Върнати суми:</strong>
+                                          <?php foreach ($returns as $r): ?>
+                                            <div class="ms-3">
+                                              <i class="fas fa-arrow-up text-success"></i> 
+                                              <?php echo number_format($r['amount'], 2); ?> лв. 
+                                              (<?php echo htmlspecialchars($r['description']); ?> - <?php echo date('d.m.Y H:i', strtotime($r['created_at'])); ?>)
+                                            </div>
+                                          <?php endforeach; ?>
+                                          <div class="ms-3 fw-bold">
+                                            Общо върнато: <?php echo number_format($total_returned, 2); ?> лв.
+                                            (Остава: <?php echo number_format($remaining, 2); ?> лв.)
+                                          </div>
+                                        </div>
+                                      <?php endif; ?>
+                                      <?php if ($remaining > 0): ?>
+                                        <div class="mt-1">
+                                          <button class="btn btn-outline-warning btn-sm" onclick="showReturnModal(<?php echo $w['id']; ?>, <?php echo $remaining; ?>, '<?php echo htmlspecialchars(addslashes($w['description'])); ?>')">
+                                            <i class="fas fa-undo"></i> Върни (<?php echo number_format($remaining, 2); ?> лв.)
+                                          </button>
+                                        </div>
+                                      <?php endif; ?>
+                                    </div>
+                                  </li>
+                                <?php endforeach; ?>
+                              </ul>
+                            <?php else: ?>
+                              <div class="text-muted">Няма тегления.</div>
+                            <?php endif; ?>
+                          </td>
+                        </tr>
                       <?php endforeach; ?>
-                    </tbody>
-                  </table>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <!-- Модал за добавяне на нова каса -->
+                <div id="addCashboxModal" class="modal fade" tabindex="-1">
+                  <div class="modal-dialog">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-plus"></i> Добави нова каса</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                      </div>
+                      <div class="modal-body">
+                        <form method="POST">
+                          <input type="hidden" name="action" value="add_cashbox">
+                          <div class="form-group mb-3">
+                            <label for="cashbox_name" class="form-label">Име на касата:</label>
+                            <input type="text" class="form-control" id="cashbox_name" name="cashbox_name" required>
+                          </div>
+                          <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+                            <button type="submit" class="btn btn-primary">Добави</button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-6 col-md-12">
+                <!-- Таблица с всички такси (като тази за касите) -->
+                <div class="card mb-3 shadow-sm" style="font-size:0.95rem;">
+                  <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
+                    <span><i class="fas fa-file-invoice-dollar"></i> Такси</span>
+                    <button class="btn btn-primary btn-sm" onclick="showAddFeeModal()"><i class="fas fa-plus"></i> Добави нова такса</button>
+                  </div>
+                  <div class="card-body p-3">
+                    <div class="table-responsive">
+                      <table class="table table-bordered table-sm mb-0" style="font-size:0.95rem;">
+                        <thead class="table-dark">
+                          <tr>
+                            <th>Тип</th>
+                            <th>Метод</th>
+                            <th>Обща сума</th>
+                            <th>Описание</th>
+                            <th>Каса</th>
+                            <th>Действия</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <?php if (!is_array($fees)) $fees = []; ?>
+                          <?php foreach ($fees as $fee): ?>
+                          <?php if ($fee['type'] === 'monthly' || $fee['type'] === 'temporary'): ?>
+                          <tr>
+                            <td><?php echo $fee['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?></td>
+                            <td>
+                              <?php
+                              switch($fee['distribution_method']) {
+                                case 'equal': echo 'Равномерно'; break;
+                                case 'by_people': echo 'По хора'; break;
+                                case 'by_area': echo 'По площ'; break;
+                              }
+                              ?>
+                            </td>
+                            <td><?php echo number_format($fee['amount'], 2); ?></td>
+                            <td><?php echo htmlspecialchars($fee['description']); ?></td>
+                            <td><?php 
+                              $cb_id = $fee['cashbox_id'] ?? null;
+                              if (!$cb_id && isset($fee['id'])) {
+                                // Ако няма cashbox_id във fee_properties, вземи от fees
+                                $cb_id = $fee['cashbox_id'];
+                              }
+                              echo isset($cashboxNames[$cb_id]) ? htmlspecialchars($cashboxNames[$cb_id]) : '<span class=\'text-danger\'>Няма</span>'; 
+                            ?></td>
+                            <td>
+                              <button class="btn btn-danger btn-sm" onclick="deleteFee(<?php echo $fee['id']; ?>)"><i class="fas fa-trash"></i> Изтрий</button>
+                            </td>
+                          </tr>
+                          <?php endif; ?>
+                          <?php endforeach; ?>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+                <!-- Модал за добавяне на такса -->
+                <div id="addFeeModal" class="modal fade" tabindex="-1">
+                  <div class="modal-dialog">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title"><i class="fas fa-plus"></i> Добави нова такса</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                      </div>
+                      <div class="modal-body">
+                        <form method="POST">
+                          <input type="hidden" name="action" value="add_fee">
+                          <div class="form-group mb-2">
+                            <label for="fee_cashbox_id" class="form-label">Каса:</label>
+                            <select class="form-control" id="fee_cashbox_id" name="cashbox_id" required>
+                              <option value="">Изберете каса</option>
+                              <?php foreach ($cashboxes as $cb): ?>
+                                <option value="<?php echo $cb['id']; ?>"><?php echo htmlspecialchars($cb['name']); ?></option>
+                              <?php endforeach; ?>
+                            </select>
+                          </div>
+                          <div class="form-group">
+                            <label for="type" class="form-label">Тип такса:</label>
+                            <select class="form-control" id="type" name="type" required onchange="toggleMonthsCount()">
+                              <option value="monthly">Месечна</option>
+                              <option value="temporary">Временна</option>
+                            </select>
+                          </div>
+                          <div class="form-group" id="months_count_group" style="display:none;">
+                            <label for="months_count" class="form-label">Брой месеци (за временна такса):</label>
+                            <input type="number" class="form-control" id="months_count" name="months_count" min="1" value="1">
+                          </div>
+                          <div class="form-group">
+                            <label for="amount" class="form-label">Обща сума за разпределение (лв.):</label>
+                            <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0" value="0" oninput="distributeAmounts()">
+                          </div>
+                          <div class="form-group">
+                            <label for="distribution_method" class="form-label">Метод на разпределение:</label>
+                            <select class="form-control" id="distribution_method" name="distribution_method" required onchange="distributeAmounts()">
+                              <option value="equal">Равномерно</option>
+                              <option value="by_people">По брой хора</option>
+                              <option value="by_area">По площ (м²)</option>
+                              <option value="by_ideal_parts">По идеални части (%)</option>
+                            </select>
+                          </div>
+                          <div class="form-group">
+                            <label for="description" class="form-label">Описание:</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                          </div>
+                          <div class="form-group">
+                            <label class="form-label">Разпределение по имоти:</label>
+                            <div class="table-responsive">
+                              <table class="table table-bordered table-sm" id="distribution_table">
+                                <thead>
+                                  <tr>
+                                    <th>Таксувай</th>
+                                    <th>Имот</th>
+                                    <th>Сума (лв.)</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <?php foreach ($properties as $property): ?>
+                                  <tr data-people="<?php echo $property['residents_count']; ?>" data-area="<?php echo $property['area']; ?>" data-ideal-parts="<?php echo $property['ideal_parts']; ?>">
+                                    <td class="text-center">
+                                      <input type="checkbox" class="charge-checkbox" name="charge[<?php echo $property['id']; ?>]" value="1" checked onchange="toggleChargeRow(this)">
+                                    </td>
+                                    <td><?php echo htmlspecialchars($property['building_name'] . ' - ' . $property['number']); ?></td>
+                                    <td><input type="number" class="form-control amount-input" name="amounts[<?php echo $property['id']; ?>]" step="0.01" min="0" value="0"></td>
+                                  </tr>
+                                  <?php endforeach; ?>
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                          <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+                            <button type="submit" class="btn btn-primary">Добави</button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-            <!-- Модал за добавяне на такса -->
-            <div id="addFeeModal" class="modal fade" tabindex="-1">
-              <div class="modal-dialog">
-                <div class="modal-content">
-                  <div class="modal-header">
-                    <h5 class="modal-title"><i class="fas fa-plus"></i> Добави нова такса</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            
+            <!-- Таблица с активни задължения по имоти -->
+            <div class="row mt-4">
+              <div class="col-12">
+                <div class="card shadow-sm">
+                  <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-list"></i> Активни задължения по имоти</h5>
                   </div>
-                  <div class="modal-body">
-                    <form method="POST">
-                      <input type="hidden" name="action" value="add_fee">
-                      <div class="form-group mb-2">
-                        <label for="fee_cashbox_id" class="form-label">Каса:</label>
-                        <select class="form-control" id="fee_cashbox_id" name="cashbox_id" required>
-                          <option value="">Изберете каса</option>
-                          <?php foreach ($cashboxes as $cb): ?>
-                            <option value="<?php echo $cb['id']; ?>"><?php echo htmlspecialchars($cb['name']); ?></option>
-                          <?php endforeach; ?>
-                        </select>
-                      </div>
-                      <div class="form-group">
-                        <label for="type" class="form-label">Тип такса:</label>
-                        <select class="form-control" id="type" name="type" required onchange="toggleMonthsCount()">
-                          <option value="monthly">Месечна</option>
-                          <option value="temporary">Временна</option>
-                        </select>
-                      </div>
-                      <div class="form-group" id="months_count_group" style="display:none;">
-                        <label for="months_count" class="form-label">Брой месеци (за временна такса):</label>
-                        <input type="number" class="form-control" id="months_count" name="months_count" min="1" value="1">
-                      </div>
-                      <div class="form-group">
-                        <label for="amount" class="form-label">Обща сума за разпределение (лв.):</label>
-                        <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0" value="0" oninput="distributeAmounts()">
-                      </div>
-                      <div class="form-group">
-                        <label for="distribution_method" class="form-label">Метод на разпределение:</label>
-                        <select class="form-control" id="distribution_method" name="distribution_method" required onchange="distributeAmounts()">
-                          <option value="equal">Равномерно</option>
-                          <option value="by_people">По брой хора</option>
-                          <option value="by_area">По площ (м²)</option>
-                        </select>
-                      </div>
-                      <div class="form-group">
-                        <label for="description" class="form-label">Описание:</label>
-                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
-                      </div>
-                      <div class="form-group">
-                        <label class="form-label">Разпределение по апартаменти:</label>
-                        <div class="table-responsive">
-                          <table class="table table-bordered table-sm" id="distribution_table">
-                            <thead>
-                              <tr>
-                                <th>Таксувай</th>
-                                <th>Имот</th>
-                                <th>Сума (лв.)</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              <?php foreach ($apartments as $apartment): ?>
-                              <tr>
-                                <td class="text-center">
-                                  <input type="checkbox" class="charge-checkbox" name="charge[<?php echo $apartment['id']; ?>]" value="1" checked onchange="toggleChargeRow(this)">
-                                </td>
-                                <td><?php echo htmlspecialchars(getPropertyTypeName($apartment['type']) . ' ' . $apartment['number']); ?></td>
-                                <td><input type="number" class="form-control amount-input" name="amounts[<?php echo $apartment['id']; ?>]" step="0.01" min="0" value="0"></td>
-                              </tr>
+                  <div class="card-body">
+                    <?php if (!empty($active_debts_by_property)): ?>
+                      <div class="table-responsive">
+                        <table class="table table-striped table-bordered table-sm">
+                          <thead class="table-dark">
+                            <tr>
+                              <th>Имот</th>
+                              <?php 
+                              // Вземи всички уникални задължения за заглавията на колоните
+                              $unique_debts = [];
+                              foreach ($active_debts_by_property as $property_data) {
+                                  foreach ($property_data['debts'] as $debt) {
+                                      $debt_key = $debt['fee_id'] . '_' . $debt['fee_description'];
+                                      if (!isset($unique_debts[$debt_key])) {
+                                          $unique_debts[$debt_key] = [
+                                              'fee_id' => $debt['fee_id'],
+                                              'description' => $debt['fee_description'],
+                                              'type' => $debt['fee_type']
+                                          ];
+                                      }
+                                  }
+                              }
+                              foreach ($unique_debts as $debt): ?>
+                                <th class="text-center">
+                                  <?php echo htmlspecialchars($debt['description']); ?>
+                                  <br>
+                                  <small class="text-muted">
+                                    <?php echo $debt['type'] === 'monthly' ? 'Месечна' : 'Временна'; ?>
+                                  </small>
+                                </th>
                               <?php endforeach; ?>
-                            </tbody>
-                          </table>
-                        </div>
+                              <th class="text-center text-primary fw-bold">Обща сума</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <?php foreach ($active_debts_by_property as $property_data): ?>
+                              <tr>
+                                <td class="fw-bold">
+                                  <?php 
+                                  $property = $property_data['property'];
+                                  echo htmlspecialchars(($PROPERTY_TYPES_BG[$property['type']] ?? $property['type']) . ' - ' . $property['number']); 
+                                  ?>
+                                </td>
+                                <?php foreach ($unique_debts as $debt_key => $debt): ?>
+                                  <td class="text-center">
+                                    <?php 
+                                    $amount = 0;
+                                    foreach ($property_data['debts'] as $property_debt) {
+                                        if ($property_debt['fee_id'] == $debt['fee_id']) {
+                                            $amount = $property_debt['debt_amount'];
+                                            break;
+                                        }
+                                    }
+                                    if ($amount > 0) {
+                                        echo '<span class="text-danger fw-bold">' . number_format($amount, 2) . ' лв.</span>';
+                                    } else {
+                                        echo '<span class="text-muted">-</span>';
+                                    }
+                                    ?>
+                                  </td>
+                                <?php endforeach; ?>
+                                <td class="text-center text-primary fw-bold">
+                                  <?php echo number_format($property_data['total_amount'], 2); ?> лв.
+                                </td>
+                              </tr>
+                            <?php endforeach; ?>
+                          </tbody>
+                        </table>
                       </div>
-                      <div class="text-end">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
-                        <button type="submit" class="btn btn-primary">Добави</button>
+                    <?php else: ?>
+                      <div class="text-center text-muted">
+                        <i class="fas fa-check-circle fa-2x mb-3"></i>
+                        <p>Няма активни задължения за тази сграда.</p>
                       </div>
-                    </form>
+                    <?php endif; ?>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-      <div class="tab-pane fade" id="reports" role="tabpanel">
-        <!-- Тук може да се добави съдържание за Отчети -->
-      </div>
-      <div class="tab-pane fade" id="payments" role="tabpanel">
-        <!-- Плащанията се местят тук -->
-        <div class="col-lg-12 col-md-12">
-            <!-- Добавяме филтри -->
+          <div class="tab-pane fade" id="reports" role="tabpanel">
+            <!-- Тук може да се добави съдържание за Отчети -->
+          </div>
+          <div class="tab-pane fade" id="payments" role="tabpanel">
+            <!-- Плащанията се местят тук -->
+            <div class="col-lg-12 col-md-12">
+                <!-- Добавяме филтри -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <form method="GET" class="row g-3 align-items-end">
+                            <input type="hidden" name="tab" value="payments">
+                            <div class="col-md-3">
+                                <label for="filter_property" class="form-label">Имот:</label>
+                                <select name="filter_property" id="filter_property" class="form-select">
+                                    <option value="">Всички имоти</option>
+                                    <?php foreach ($properties as $property): ?>
+                                        <option value="<?php echo $property['id']; ?>" <?php if (isset($_GET['filter_property']) && $_GET['filter_property'] == $property['id']) echo 'selected'; ?>>
+                                            <?php echo htmlspecialchars(($PROPERTY_TYPES_BG[$property['type']] ?? $property['type']) . ' - ' . $property['number']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="filter_method" class="form-label">Метод на плащане:</label>
+                                <select name="filter_method" id="filter_method" class="form-select">
+                                    <option value="">Всички</option>
+                                    <?php foreach ($payment_methods as $method): ?>
+                                        <option value="<?php echo $method; ?>" <?php if (isset($_GET['filter_method']) && $_GET['filter_method'] == $method) echo 'selected'; ?>><?php echo $method; ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="filter_date_from" class="form-label">От дата:</label>
+                                <input type="date" name="filter_date_from" id="filter_date_from" class="form-control" value="<?php echo isset($_GET['filter_date_from']) ? htmlspecialchars($_GET['filter_date_from']) : ''; ?>">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="filter_date_to" class="form-label">До дата:</label>
+                                <input type="date" name="filter_date_to" id="filter_date_to" class="form-control" value="<?php echo isset($_GET['filter_date_from']) ? htmlspecialchars($_GET['filter_date_to']) : ''; ?>">
+                            </div>
+                            <div class="col-md-12 text-end">
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Филтрирай</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card mb-3 shadow-sm" style="font-size:0.95rem;">
+                    <div class="card-header d-flex justify-content-between align-items-center bg-success text-white">
+                        <span><i class="fas fa-credit-card"></i> Плащания</span>
+                        <button class="btn btn-success btn-sm" onclick="showAddModal()"><i class="fas fa-plus"></i> Добави ново плащане</button>
+                    </div>
+                    <div class="card-body p-3">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-bordered table-sm mb-0" style="font-size:0.95rem;">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Имот</th>
+                                        <th>Сума (лв.)</th>
+                                        <th>Дата</th>
+                                        <th>Метод</th>
+                                        <th>Описание</th>
+                                        <th>Бележка</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php 
+                                    // Прилагаме филтрите към заявката за плащания
+                                    $payments_query = "
+                                        SELECT p.*, a.number AS property_number, a.type AS property_type, b.name AS building_name, f.description AS fee_description
+                                        FROM payments p
+                                        JOIN properties a ON p.property_id = a.id
+                                        JOIN buildings b ON a.building_id = b.id
+                                        LEFT JOIN fees f ON p.fee_id = f.id
+                                        WHERE 1=1
+                                    ";
+                                    $payments_params = [];
+
+                                    if ($currentBuilding) {
+                                        $payments_query .= " AND a.building_id = ?";
+                                        $payments_params[] = $currentBuilding['id'];
+                                    }
+
+                                    if (isset($_GET['filter_property']) && $_GET['filter_property']) {
+                                        $payments_query .= " AND a.id = ?";
+                                        $payments_params[] = $_GET['filter_property'];
+                                    }
+
+                                    if (isset($_GET['filter_method']) && $_GET['filter_method']) {
+                                        $payments_query .= " AND p.payment_method = ?";
+                                        $payments_params[] = $_GET['filter_method'];
+                                    }
+
+                                    if (isset($_GET['filter_date_from']) && $_GET['filter_date_from']) {
+                                        $payments_query .= " AND p.payment_date >= ?";
+                                        $payments_params[] = $_GET['filter_date_from'];
+                                    }
+
+                                    if (isset($_GET['filter_date_to']) && $_GET['filter_date_to']) {
+                                        $payments_query .= " AND p.payment_date <= ?";
+                                        $payments_params[] = $_GET['filter_date_to'];
+                                    }
+
+                                    $payments_query .= " ORDER BY p.created_at DESC, p.id DESC";
+                                    
+                                    $stmt = $pdo->prepare($payments_query);
+                                    $stmt->execute($payments_params);
+                                    $filtered_payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                                    foreach ($filtered_payments as $payment): 
+                                    ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars(($PROPERTY_TYPES_BG[$payment['property_type']] ?? $payment['property_type']) . ' - ' . $payment['property_number']); ?></td>
+                                        <td><?php echo number_format($payment['amount'], 2); ?></td>
+                                        <td><?php echo htmlspecialchars($payment['payment_date']); ?></td>
+                                        <td><?php echo htmlspecialchars($payment['payment_method']); ?></td>
+                                        <td><?php echo htmlspecialchars($payment['fee_description'] ?? $payment['description'] ?? ''); ?></td>
+                                        <td><?php echo htmlspecialchars($payment['notes'] ?? ''); ?></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Модал за добавяне на плащане и JS остават тук -->
+            <div id="addModal" class="modal fade" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title"><i class="fas fa-plus"></i> Добави ново плащане</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form method="POST">
+                                <input type="hidden" name="action" value="add_payment">
+                                <div class="form-group">
+                                    <label for="property_id" class="form-label">Имот:</label>
+                                    <select class="form-control" id="property_id" name="property_id" required onchange="updateUnpaidFees()">
+                                        <option value="">Изберете имот</option>
+                                        <?php foreach ($properties as $property): ?>
+                                        <option value="<?php echo $property['id']; ?>">
+                                            <?php echo htmlspecialchars(($PROPERTY_TYPES_BG[$property['type']] ?? $property['type']) . ' - ' . $property['number']); ?>
+                                        </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="fee_id" class="form-label">Такса:</label>
+                                    <select class="form-control" id="fee_id" name="fee_id" required>
+                                        <option value="">Първо изберете имот</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="amount" class="form-label">Сума (лв.):</label>
+                                    <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="payment_date" class="form-label">Дата на плащане:</label>
+                                    <input type="date" class="form-control" id="payment_date" name="payment_date" value="<?php echo date('Y-m-d'); ?>" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="payment_method" class="form-label">Метод на плащане:</label>
+                                    <select class="form-control" id="payment_method" name="payment_method" required>
+                                        <?php foreach ($payment_methods as $method): ?>
+                                        <option value="<?php echo $method; ?>"><?php echo $method; ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="notes" class="form-label">Бележки:</label>
+                                    <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                                </div>
+                                <div class="form-group mb-2">
+                                  <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="add_to_balance_checkbox" name="add_to_balance" value="1">
+                                    <label class="form-check-label" for="add_to_balance_checkbox">
+                                      Добави към баланс вместо плащане
+                                    </label>
+                                  </div>
+                                </div>
+                                <div class="text-end">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+                                    <button type="submit" class="btn btn-primary">Добави</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="debts" role="tabpanel">
+            <!-- Добавям филтърна форма като при плащанията -->
             <div class="card mb-3">
                 <div class="card-body">
                     <form method="GET" class="row g-3 align-items-end">
-                        <input type="hidden" name="tab" value="payments">
+                        <input type="hidden" name="tab" value="debts">
                         <div class="col-md-3">
-                            <label for="filter_apartment" class="form-label">Апартамент:</label>
-                            <select name="filter_apartment" id="filter_apartment" class="form-select">
-                                <option value="">Всички апартаменти</option>
-                                <?php foreach ($apartments as $apartment): ?>
-                                    <option value="<?php echo $apartment['id']; ?>" <?php if (isset($_GET['filter_apartment']) && $_GET['filter_apartment'] == $apartment['id']) echo 'selected'; ?>>
-                                        <?php echo htmlspecialchars(getPropertyTypeName($apartment['type']) . ' ' . $apartment['number']); ?>
+                            <label for="filter_property_debt" class="form-label">Имот:</label>
+                            <select name="filter_property_debt" id="filter_property_debt" class="form-select">
+                                <option value="">Всички имоти</option>
+                                <?php foreach (
+                                    $properties as $property): ?>
+                                    <option value="<?php echo $property['id']; ?>" <?php if (isset($_GET['filter_property_debt']) && $_GET['filter_property_debt'] == $property['id']) echo 'selected'; ?>>
+                                        <?php echo htmlspecialchars(($PROPERTY_TYPES_BG[$property['type']] ?? $property['type']) . ' - ' . $property['number']); ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="col-md-3">
-                            <label for="filter_method" class="form-label">Метод на плащане:</label>
-                            <select name="filter_method" id="filter_method" class="form-select">
+                            <label for="filter_method_debt" class="form-label">Метод на разпределение:</label>
+                            <select name="filter_method_debt" id="filter_method_debt" class="form-select">
                                 <option value="">Всички</option>
-                                <?php foreach ($payment_methods as $method): ?>
-                                    <option value="<?php echo $method; ?>" <?php if (isset($_GET['filter_method']) && $_GET['filter_method'] == $method) echo 'selected'; ?>><?php echo $method; ?></option>
-                                <?php endforeach; ?>
+                                <option value="equal" <?php if (isset($_GET['filter_method_debt']) && $_GET['filter_method_debt'] == 'equal') echo 'selected'; ?>>Равномерно</option>
+                                <option value="by_people" <?php if (isset($_GET['filter_method_debt']) && $_GET['filter_method_debt'] == 'by_people') echo 'selected'; ?>>По хора</option>
+                                <option value="by_area" <?php if (isset($_GET['filter_method_debt']) && $_GET['filter_method_debt'] == 'by_area') echo 'selected'; ?>>По площ</option>
+                                <option value="by_ideal_parts" <?php if (isset($_GET['filter_method_debt']) && $_GET['filter_method_debt'] == 'by_ideal_parts') echo 'selected'; ?>>По идеални части</option>
                             </select>
                         </div>
                         <div class="col-md-3">
-                            <label for="filter_date_from" class="form-label">От дата:</label>
-                            <input type="date" name="filter_date_from" id="filter_date_from" class="form-control" value="<?php echo isset($_GET['filter_date_from']) ? htmlspecialchars($_GET['filter_date_from']) : ''; ?>">
+                            <label for="filter_date_from_debt" class="form-label">От дата:</label>
+                            <input type="date" name="filter_date_from_debt" id="filter_date_from_debt" class="form-control" value="<?php echo isset($_GET['filter_date_from_debt']) ? htmlspecialchars($_GET['filter_date_from_debt']) : ''; ?>">
                         </div>
                         <div class="col-md-3">
-                            <label for="filter_date_to" class="form-label">До дата:</label>
-                            <input type="date" name="filter_date_to" id="filter_date_to" class="form-control" value="<?php echo isset($_GET['filter_date_from']) ? htmlspecialchars($_GET['filter_date_to']) : ''; ?>">
+                            <label for="filter_date_to_debt" class="form-label">До дата:</label>
+                            <input type="date" name="filter_date_to_debt" id="filter_date_to_debt" class="form-control" value="<?php echo isset($_GET['filter_date_to_debt']) ? htmlspecialchars($_GET['filter_date_to_debt']) : ''; ?>">
                         </div>
                         <div class="col-md-12 text-end">
                             <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Филтрирай</button>
@@ -668,686 +1175,543 @@ require_once 'includes/styles.php';
                     </form>
                 </div>
             </div>
-
             <div class="card mb-3 shadow-sm" style="font-size:0.95rem;">
-                <div class="card-header d-flex justify-content-between align-items-center bg-success text-white">
-                    <span><i class="fas fa-credit-card"></i> Плащания</span>
-                    <button class="btn btn-success btn-sm" onclick="showAddModal()"><i class="fas fa-plus"></i> Добави ново плащане</button>
-                </div>
-                <div class="card-body p-3">
-                    <div class="table-responsive">
-                        <table class="table table-striped table-bordered table-sm mb-0" style="font-size:0.95rem;">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>Апартамент</th>
-                                    <th>Сума (лв.)</th>
-                                    <th>Дата</th>
-                                    <th>Метод</th>
-                                    <th>Описание</th>
-                                    <th>Бележка</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php 
-                                // Прилагаме филтрите към заявката за плащания
-                                $payments_query = "
-                                    SELECT p.*, a.number AS apartment_number, b.name AS building_name
-                                    FROM payments p
-                                    JOIN apartments a ON p.apartment_id = a.id
-                                    JOIN buildings b ON a.building_id = b.id
-                                    WHERE 1=1
-                                ";
-                                $payments_params = [];
-
-                                if ($currentBuilding) {
-                                    $payments_query .= " AND a.building_id = ?";
-                                    $payments_params[] = $currentBuilding['id'];
-                                }
-
-                                if (isset($_GET['filter_apartment']) && $_GET['filter_apartment']) {
-                                    $payments_query .= " AND a.id = ?";
-                                    $payments_params[] = $_GET['filter_apartment'];
-                                }
-
-                                if (isset($_GET['filter_method']) && $_GET['filter_method']) {
-                                    $payments_query .= " AND p.payment_method = ?";
-                                    $payments_params[] = $_GET['filter_method'];
-                                }
-
-                                if (isset($_GET['filter_date_from']) && $_GET['filter_date_from']) {
-                                    $payments_query .= " AND p.payment_date >= ?";
-                                    $payments_params[] = $_GET['filter_date_from'];
-                                }
-
-                                if (isset($_GET['filter_date_to']) && $_GET['filter_date_to']) {
-                                    $payments_query .= " AND p.payment_date <= ?";
-                                    $payments_params[] = $_GET['filter_date_to'];
-                                }
-
-                                $payments_query .= " ORDER BY p.payment_date DESC, p.id DESC";
-                                
-                                $stmt = $pdo->prepare($payments_query);
-                                $stmt->execute($payments_params);
-                                $filtered_payments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-                                foreach ($filtered_payments as $payment): 
-                                ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars(getPropertyTypeName($payment['type']) . ' ' . $payment['apartment_number']); ?></td>
-                                    <td><?php echo number_format($payment['amount'], 2); ?></td>
-                                    <td><?php echo htmlspecialchars($payment['payment_date']); ?></td>
-                                    <td><?php echo htmlspecialchars($payment['payment_method']); ?></td>
-                                    <td><?php echo htmlspecialchars($payment['description'] ?? ''); ?></td>
-                                    <td><?php echo htmlspecialchars($payment['notes'] ?? ''); ?></td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Модал за добавяне на плащане и JS остават тук -->
-        <div id="addModal" class="modal fade" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title"><i class="fas fa-plus"></i> Добави ново плащане</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form method="POST">
-                            <input type="hidden" name="action" value="add_payment">
-                            <div class="form-group">
-                                <label for="apartment_id" class="form-label">Апартамент:</label>
-                                <select class="form-control" id="apartment_id" name="apartment_id" required onchange="updateUnpaidFees()">
-                                    <option value="">Изберете апартамент</option>
-                                    <?php foreach ($apartments as $apartment): ?>
-                                    <option value="<?php echo $apartment['id']; ?>">
-                                        <?php echo htmlspecialchars(getPropertyTypeName($apartment['type']) . ' ' . $apartment['number']); ?>
-                                    </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="fee_id" class="form-label">Такса:</label>
-                                <select class="form-control" id="fee_id" name="fee_id" required>
-                                    <option value="">Първо изберете апартамент</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="amount" class="form-label">Сума (лв.):</label>
-                                <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="payment_date" class="form-label">Дата на плащане:</label>
-                                <input type="date" class="form-control" id="payment_date" name="payment_date" value="<?php echo date('Y-m-d'); ?>" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="payment_method" class="form-label">Метод на плащане:</label>
-                                <select class="form-control" id="payment_method" name="payment_method" required>
-                                    <?php foreach ($payment_methods as $method): ?>
-                                    <option value="<?php echo $method; ?>"><?php echo $method; ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="notes" class="form-label">Бележки:</label>
-                                <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
-                            </div>
-                            <div class="form-group mb-2">
-                              <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="add_to_balance_checkbox" name="add_to_balance" value="1">
-                                <label class="form-check-label" for="add_to_balance_checkbox">
-                                  Добави към баланс вместо плащане
-                                </label>
-                              </div>
-                            </div>
-                            <div class="text-end">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
-                                <button type="submit" class="btn btn-primary">Добави</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-      </div>
-      <div class="tab-pane fade" id="transactions" role="tabpanel">
-        <!-- Тук може да се добави съдържание за Транзакции -->
-      </div>
-      <div class="tab-pane fade" id="debts" role="tabpanel">
-        <div class="card mb-3 shadow-sm" style="font-size:0.95rem;">
-          <div class="card-body p-3">
-            <!-- Филтри за задължения -->
-            <form method="GET" class="row g-3 align-items-end mb-3">
-                <input type="hidden" name="tab" value="debts">
-                <div class="col-md-4">
-                    <label for="debt_filter_apartment" class="form-label">Имот:</label>
-                    <select name="debt_filter_apartment" id="debt_filter_apartment" class="form-select">
-                        <option value="">Всички имоти</option>
-                        <?php foreach ($apartments as $apartment): ?>
-                            <option value="<?php echo $apartment['id']; ?>" <?php if (isset($_GET['debt_filter_apartment']) && $_GET['debt_filter_apartment'] == $apartment['id']) echo 'selected'; ?>>
-                                <?php echo htmlspecialchars(getPropertyTypeName($apartment['type']) . ' ' . $apartment['number']); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label for="debt_filter_min" class="form-label">Минимално задължение (лв.):</label>
-                    <input type="number" step="0.01" name="debt_filter_min" id="debt_filter_min" class="form-control" value="<?php echo isset($_GET['debt_filter_min']) ? htmlspecialchars($_GET['debt_filter_min']) : ''; ?>">
-                </div>
-                <div class="col-md-4 text-end">
-                    <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Филтрирай</button>
-                </div>
-            </form>
-            <div class="table-responsive">
-              <table class="table table-striped table-bordered table-sm">
-                <thead class="table-dark">
-                  <tr>
-                    <th>Имот</th>
-                    <th>Баланс</th>
-                    <th>Задължения</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <?php 
-                  foreach ($apartments as $apartment):
-                    $aid = $apartment['id'];
-                    $debt = $apartmentDebts[$aid] ?? 0;
-                    if ($debt == 0) continue;
-                    // Филтриране по имот
-                    if (isset($_GET['debt_filter_apartment']) && $_GET['debt_filter_apartment'] !== '' && $_GET['debt_filter_apartment'] != $aid) continue;
-                    // Филтриране по минимално задължение
-                    if (isset($_GET['debt_filter_min']) && $_GET['debt_filter_min'] !== '' && $debt < floatval($_GET['debt_filter_min'])) continue;
-                  ?>
-                  <tr>
-                    <td><?php echo htmlspecialchars(getPropertyTypeName($apartment['type']) . ' ' . $apartment['number']); ?></td>
-                    <td><?php echo number_format($apartment['balance'], 2); ?> лв.</td>
-                    <td><?php echo number_format($debt, 2); ?> лв.</td>
-                    <td><button class="btn btn-success btn-sm pay-apartment-btn" data-apartment='<?php echo json_encode($apartment); ?>'><i class="fas fa-credit-card"></i> Плати</button></td>
-                  </tr>
-                  <?php endforeach; ?>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-        <!-- Модал за плащане на задължения на апартамент -->
-        <div id="payApartmentModal" class="modal fade" tabindex="-1">
-          <div class="modal-dialog">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-credit-card"></i> Плащане на задължения</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-              </div>
-              <div class="modal-body">
-                <form method="POST" id="payApartmentForm">
-                  <input type="hidden" name="action" value="add_payment">
-                  <input type="hidden" name="apartment_id" id="pay_apartment_modal_id">
-                  <div class="mb-3">
-                    <label class="form-label">Апартамент:</label>
-                    <input type="text" class="form-control" id="pay_apartment_modal_info" readonly>
-                  </div>
-                  <div class="mb-3">
-                    <label class="form-label">Избери задължения за плащане:</label>
-                    <div id="apartmentDebtsList" class="border p-2 rounded" style="max-height: 200px; overflow-y: auto;"></div>
-                  </div>
-                  <div class="mb-3">
-                    <label class="form-label">Обща сума за плащане: <span id="totalApartmentPayment">0.00</span> лв.</label>
-                  </div>
-                  <div class="mb-3">
-                    <label class="form-label">Метод на плащане:</label>
-                    <select class="form-control" name="payment_method" id="pay_apartment_payment_method" required>
-                      <?php foreach ($payment_methods as $method): ?>
-                      <option value="<?php echo $method; ?>"><?php echo $method; ?></option>
+              <div class="card-body p-3">
+                <div class="table-responsive">
+                  <table class="table table-striped table-bordered table-sm">
+                    <thead class="table-dark">
+                      <tr>
+                        <th>Имот</th>
+                        <th>Баланс</th>
+                        <th>Задължения</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <?php 
+                      // Филтриране на задълженията според избраните филтри
+                      $filtered_properties = $properties;
+                      if (isset($_GET['filter_property_debt']) && $_GET['filter_property_debt']) {
+                          $filtered_properties = array_filter($filtered_properties, function($a) {
+                              return $a['id'] == $_GET['filter_property_debt'];
+                          });
+                      }
+                      // Филтриране по метод на разпределение и период
+                      $filtered_debts = $propertyDebts;
+                      $filtered_unpaid_fees = $unpaid_fees_list;
+                      if (isset($_GET['filter_method_debt']) && $_GET['filter_method_debt']) {
+                          $filtered_unpaid_fees = array_filter($filtered_unpaid_fees, function($fee) {
+                              return $fee['distribution_method'] == $_GET['filter_method_debt'];
+                          });
+                      }
+                      if (isset($_GET['filter_date_from_debt']) && $_GET['filter_date_from_debt']) {
+                          $filtered_unpaid_fees = array_filter($filtered_unpaid_fees, function($fee) {
+                              return $fee['created_at'] >= $_GET['filter_date_from_debt'];
+                          });
+                      }
+                      if (isset($_GET['filter_date_to_debt']) && $_GET['filter_date_to_debt']) {
+                          $filtered_unpaid_fees = array_filter($filtered_unpaid_fees, function($fee) {
+                              return $fee['created_at'] <= $_GET['filter_date_to_debt'];
+                          });
+                      }
+                      // ДЕБЪГ: Проверка на типа и съдържанието на $filtered_unpaid_fees и $unpaid_fees_list
+                      if (!is_array($filtered_unpaid_fees)) {
+                          echo '<pre style="color:red">';
+                          echo 'ДЕБЪГ: $filtered_unpaid_fees не е масив!\n';
+                          var_dump($filtered_unpaid_fees);
+                          echo "\nДЕБЪГ: $unpaid_fees_list = ";
+                          var_dump($unpaid_fees_list);
+                          echo '</pre>';
+                          die('Скриптът е прекратен за дебъг.');
+                      }
+                      // Пресмятаме задълженията само за филтрираните такси
+                      $debts_by_property = [];
+                      foreach ($filtered_unpaid_fees as $fee) {
+                          $aid = $fee['property_id'];
+                          if (!isset($debts_by_property[$aid])) $debts_by_property[$aid] = 0;
+                          $debts_by_property[$aid] += $fee['amount'];
+                      }
+                      if (!is_array($filtered_properties)) $filtered_properties = [];
+                      foreach ($filtered_properties as $property):
+                        $aid = $property['id'];
+                        $debt = $debts_by_property[$aid] ?? 0;
+                        if ($debt == 0) continue;
+                      ?>
+                      <tr>
+                        <td><?php echo htmlspecialchars(($PROPERTY_TYPES_BG[$property['type']] ?? $property['type']) . ' - ' . $property['number']); ?></td>
+                        <td><?php echo number_format($property['balance'], 2); ?> лв.</td>
+                        <td><?php echo number_format($debt, 2); ?> лв.</td>
+                        <td><button class="btn btn-success btn-sm pay-property-btn" data-property='<?php echo json_encode($property); ?>'><i class="fas fa-credit-card"></i> Плати</button></td>
+                      </tr>
                       <?php endforeach; ?>
-                      <option value="от баланс">От баланс</option>
-                    </select>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <!-- Модал за плащане на задължения на имот -->
+            <div id="payPropertyModal" class="modal fade" tabindex="-1">
+              <div class="modal-dialog">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-credit-card"></i> Плащане на задължения</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                   </div>
-                  <div class="mb-3">
-                    <label class="form-label">Бележка:</label>
-                    <textarea class="form-control" name="notes" rows="2"></textarea>
+                  <div class="modal-body">
+                    <form method="POST" id="payPropertyForm">
+                      <input type="hidden" name="action" value="add_payment">
+                      <input type="hidden" name="property_id" id="pay_property_modal_id">
+                      <div class="mb-3">
+                        <label class="form-label">Имот:</label>
+                        <input type="text" class="form-control" id="pay_property_modal_info" readonly>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Избери задължения за плащане:</label>
+                        <div id="propertyDebtsList" class="border p-2 rounded" style="max-height: 200px; overflow-y: auto;"></div>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Обща сума за плащане: <span id="totalPropertyPayment">0.00</span> лв.</label>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Метод на плащане:</label>
+                        <select class="form-control" name="payment_method" id="pay_property_payment_method" required>
+                          <?php foreach ($payment_methods as $method): ?>
+                          <option value="<?php echo $method; ?>"><?php echo $method; ?></option>
+                          <?php endforeach; ?>
+                          <option value="от баланс">От баланс</option>
+                        </select>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Бележка:</label>
+                        <textarea class="form-control" name="notes" rows="2"></textarea>
+                      </div>
+                      <div class="text-end">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+                        <button type="submit" class="btn btn-success">Потвърди плащане</button>
+                      </div>
+                    </form>
                   </div>
-                  <div class="text-end">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
-                    <button type="submit" class="btn btn-success">Потвърди плащане</button>
-                  </div>
-                </form>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
     </div>
-</div>
-
-<!-- JavaScript Libraries -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<!-- Bootstrap 5.1.3 JS Bundle with Popper -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" 
-        integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" 
-        crossorigin="anonymous">
-</script>
-
-<!-- Custom Scripts -->
-<script>
-// Check if Bootstrap is loaded
-if (typeof bootstrap === 'undefined') {
-    console.error('Bootstrap is not loaded. The page may not function correctly.');
-    alert('Грешка при зареждане на страницата. Моля, проверете връзката си с интернет и опреснете страницата.');
-}
-
-// Function to initialize Bootstrap components
-function initializeBootstrapComponents() {
-    try {
-        // Initialize tooltips
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        tooltipTriggerList.forEach(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
-
-        // Initialize popovers
-        var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
-        popoverTriggerList.forEach(function (popoverTriggerEl) {
-            return new bootstrap.Popover(popoverTriggerEl);
-        });
-        
-        console.log('Bootstrap components initialized successfully');
-    } catch (error) {
-        console.error('Error initializing Bootstrap components:', error);
-    }
-}
-
-// Initialize when document is ready
-document.addEventListener('DOMContentLoaded', function() {
-    initializeBootstrapComponents();
+    <div class="modal fade" id="withdrawModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form method="POST">
+            <input type="hidden" name="action" value="withdraw">
+            <input type="hidden" name="cashbox_id" id="withdraw_cashbox_id">
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="fas fa-arrow-down"></i> Теглене от каса</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-2"><strong>Каса:</strong> <span id="withdraw_cashbox_name"></span></div>
+              <div class="form-group mb-2">
+                <label for="withdraw_amount" class="form-label">Сума (лв.):</label>
+                <input type="number" class="form-control" id="withdraw_amount" name="amount" step="0.01" min="0.01" required>
+              </div>
+              <div class="form-group mb-2">
+                <label for="withdraw_description" class="form-label">Описание:</label>
+                <input type="text" class="form-control" id="withdraw_description" name="description" required placeholder="Пример: Ремонт, ток и др.">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+              <button type="submit" class="btn btn-danger">Тегли</button>
+            </div>
+          </form>
+          </div>
+        </div>
+    </div>
     
-    // Initialize tabs if they exist
-    var tabEls = document.querySelectorAll('button[data-bs-toggle="tab"]');
-    tabEls.forEach(function(tabEl) {
-        tabEl.addEventListener('click', function (event) {
-            event.preventDefault();
-            var tab = new bootstrap.Tab(tabEl);
-            tab.show();
-        });
-    });
-    
-    console.log('Document ready');
-});
-
-// Global functions
-function initializeBootstrapComponents() {
-    try {
-        // Initialize tooltips
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        tooltipTriggerList.forEach(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
-
-        // Initialize popovers
-        var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
-        popoverTriggerList.forEach(function (popoverTriggerEl) {
-            return new bootstrap.Popover(popoverTriggerEl);
-        });
-        
-        console.log('Bootstrap components initialized successfully');
-    } catch (error) {
-        console.error('Error initializing Bootstrap components:', error);
-    }
-}
-
-// Global functions
-function showAddCashboxModal() {
-    try {
-        var modalElement = document.getElementById('addCashboxModal');
-        if (!modalElement) {
-            console.error('Modal element not found: addCashboxModal');
-            return;
-        }
-        var modal = bootstrap.Modal.getOrCreateInstance(modalElement);
-        modal.show();
-    } catch (error) {
-        console.error('Error showing add cashbox modal:', error);
-        alert('Грешка при отваряне на модалния прозорец. Моля, опитайте отново.');
-    }
-}
-
-function deleteCashbox(id) {
-    if (confirm('Сигурни ли сте, че искате да изтриете тази каса?')) {
-        try {
+    <!-- Модал за връщане на теглени пари -->
+    <div class="modal fade" id="returnModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form method="POST">
+            <input type="hidden" name="action" value="return_withdrawal">
+            <input type="hidden" name="withdrawal_id" id="return_withdrawal_id">
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="fas fa-undo"></i> Връщане на теглени пари</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="mb-2"><strong>Теглене:</strong> <span id="return_withdrawal_description"></span></div>
+              <div class="mb-2"><strong>Максимална сума за връщане:</strong> <span id="return_max_amount" class="text-primary fw-bold"></span> лв.</div>
+              <div class="form-group mb-2">
+                <label for="return_amount" class="form-label">Сума за връщане (лв.):</label>
+                <input type="number" class="form-control" id="return_amount" name="return_amount" step="0.01" min="0.01" required>
+              </div>
+              <div class="form-group mb-2">
+                <label for="return_description" class="form-label">Причина за връщане:</label>
+                <input type="text" class="form-control" id="return_description" name="return_description" required placeholder="Пример: Не е използвано, грешка в сумата и др.">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отказ</button>
+              <button type="submit" class="btn btn-warning">Върни</button>
+            </div>
+          </form>
+          </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    function deleteCashbox(id) {
+        if (confirm('Сигурни ли сте, че искате да изтриете тази каса?')) {
             const form = document.createElement('form');
             form.method = 'POST';
             form.innerHTML = '<input type="hidden" name="action" value="delete_cashbox"><input type="hidden" name="cashbox_id" value="' + id + '">';
             document.body.appendChild(form);
             form.submit();
-        } catch (error) {
-            console.error('Error deleting cashbox:', error);
-            alert('Грешка при изтриване на касата. Моля, опитайте отново.');
         }
     }
-}
-
-const unpaidFees = <?php echo isset($unpaid_fees) ? json_encode($unpaid_fees) : '[]'; ?>;
-
-function showAddModal() {
-    try {
-        var modalElement = document.getElementById('addModal');
-        if (!modalElement) {
-            console.error('Modal element not found: addModal');
-            return;
-        }
-        var modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+    const unpaidFees = <?php echo json_encode($unpaid_fees_list); ?>;
+    function showAddModal() {
+        var modal = new bootstrap.Modal(document.getElementById('addModal'));
         modal.show();
-    } catch (error) {
-        console.error('Error showing add modal:', error);
-        alert('Грешка при отваряне на модалния прозорец. Моля, опитайте отново.');
     }
-}
-
-function showAddFeeModal() {
-    try {
-        var modalElement = document.getElementById('addFeeModal');
-        if (!modalElement) {
-            console.error('Modal element not found: addFeeModal');
-            return;
+    function updateUnpaidFees() {
+        const propertyId = document.getElementById('property_id').value;
+        const feeSelect = document.getElementById('fee_id');
+        feeSelect.innerHTML = '<option value="">Изберете такса</option>';
+        if (propertyId) {
+            const propertyFees = unpaidFees.filter(fee => fee.property_id == propertyId);
+            propertyFees.forEach(fee => {
+                const option = document.createElement('option');
+                option.value = fee.fa_id;
+                option.textContent = `${fee.amount} лв.`;
+                feeSelect.appendChild(option);
+            });
         }
-        var modal = bootstrap.Modal.getOrCreateInstance(modalElement);
-        modal.show();
-    } catch (error) {
-        console.error('Error showing add fee modal:', error);
-        alert('Грешка при отваряне на модалния прозорец. Моля, опитайте отново.');
     }
-}
-
-function showPayModal(apartmentId, apartmentNumber, amount) {
-    try {
-        document.getElementById('pay_apartment_id').value = apartmentId;
-        document.getElementById('pay_apartment_number').textContent = apartmentNumber;
-        document.getElementById('pay_amount').value = amount;
-        var modalElement = document.getElementById('payModal');
-        if (!modalElement) {
-            console.error('Modal element not found: payModal');
-            return;
+    function showAddCashboxModal() {
+        var modal = new bootstrap.Modal(document.getElementById('addCashboxModal'));
+        modal.show();
+    }
+    function showAddFeeModal() {
+        var modal = new bootstrap.Modal(document.getElementById('addFeeModal'));
+        modal.show();
+    }
+    function showEditFeeModal(fee) {
+        // Тук можеш да добавиш логика за редакция на такса
+        // (примерно попълване на модал с данните на таксата)
+    }
+    function deleteFee(id) {
+        if (confirm('Сигурни ли сте, че искате да изтриете тази такса?')) {
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.innerHTML = '<input type="hidden" name="action" value="delete_fee"><input type="hidden" name="id" value="' + id + '">';
+            document.body.appendChild(form);
+            form.submit();
         }
-        var modal = bootstrap.Modal.getOrCreateInstance(modalElement);
-        modal.show();
-    } catch (error) {
-        console.error('Error showing pay modal:', error);
-        alert('Грешка при отваряне на модалния прозорец. Моля, опитайте отново.');
     }
-}
-function updateUnpaidFees() {
-    const apartmentId = document.getElementById('apartment_id').value;
-    const feeSelect = document.getElementById('fee_id');
-    feeSelect.innerHTML = '<option value="">Изберете такса</option>';
-    if (apartmentId) {
-        const apartmentFees = unpaidFees.filter(fee => fee.apartment_id == apartmentId);
-        apartmentFees.forEach(fee => {
-            const option = document.createElement('option');
-            option.value = fee.fa_id;
-            option.textContent = `${fee.amount} лв.`;
-            feeSelect.appendChild(option);
+    function toggleMonthsCount() {
+        var type = document.getElementById('type').value;
+        document.getElementById('months_count_group').style.display = (type === 'temporary') ? 'block' : 'none';
+    }
+    function distributeAmounts() {
+        var total = parseFloat(document.getElementById('amount').value) || 0;
+        var method = document.getElementById('distribution_method').value;
+        var rows = document.querySelectorAll('#distribution_table tbody tr');
+        var checkedRows = Array.from(rows).filter(function(row) {
+            return row.querySelector('.charge-checkbox').checked;
         });
-    }
-}
-function showAddCashboxModal() {
-    var modal = new bootstrap.Modal(document.getElementById('addCashboxModal'));
-    modal.show();
-}
-function showAddFeeModal() {
-    var modal = new bootstrap.Modal(document.getElementById('addFeeModal'));
-    modal.show();
-}
-function showEditFeeModal(fee) {
-    // Тук можеш да добавиш логика за редакция на такса
-    // (примерно попълване на модал с данните на таксата)
-}
-function deleteFee(id) {
-    if (confirm('Сигурни ли сте, че искате да изтриете тази такса?')) {
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.innerHTML = '<input type="hidden" name="action" value="delete_fee"><input type="hidden" name="id" value="' + id + '">';
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
-function toggleMonthsCount() {
-    var type = document.getElementById('type').value;
-    document.getElementById('months_count_group').style.display = (type === 'temporary') ? 'block' : 'none';
-}
-function distributeAmounts() {
-    var total = parseFloat(document.getElementById('amount').value) || 0;
-    var method = document.getElementById('distribution_method').value;
-    var rows = document.querySelectorAll('#distribution_table tbody tr');
-    var checkedRows = Array.from(rows).filter(function(row) {
-        return row.querySelector('.charge-checkbox').checked;
-    });
-    var n = checkedRows.length;
-    if (n === 0) {
+        var n = checkedRows.length;
+        if (n === 0) {
+            rows.forEach(function(row) {
+                row.querySelector('.amount-input').value = '';
+            });
+            return;
+        }
+        if (method === 'equal') {
+            var per = (total / n);
+            checkedRows.forEach(function(row, i) {
+                var val = (i === n - 1) ? (total - per * (n - 1)) : per;
+                row.querySelector('.amount-input').value = val.toFixed(2);
+            });
+        } else if (method === 'by_people') {
+            var totalPeople = 0;
+            checkedRows.forEach(function(row) {
+                totalPeople += parseInt(row.getAttribute('data-people')) || 1;
+            });
+            checkedRows.forEach(function(row, i) {
+                var people = parseInt(row.getAttribute('data-people')) || 1;
+                var val = totalPeople ? (total * people / totalPeople) : 0;
+                if (i === n - 1) {
+                    // Корекция за последния ред
+                    var sum = 0;
+                    checkedRows.forEach(function(r, j) {
+                        if (j !== n - 1) sum += parseFloat(r.querySelector('.amount-input').value) || 0;
+                    });
+                    val = total - sum;
+                }
+                row.querySelector('.amount-input').value = val.toFixed(2);
+            });
+        } else if (method === 'by_area') {
+            var totalArea = 0;
+            checkedRows.forEach(function(row) {
+                totalArea += parseFloat(row.getAttribute('data-area')) || 1;
+            });
+            checkedRows.forEach(function(row, i) {
+                var area = parseFloat(row.getAttribute('data-area')) || 1;
+                var val = totalArea ? (total * area / totalArea) : 0;
+                if (i === n - 1) {
+                    // Корекция за последния ред
+                    var sum = 0;
+                    checkedRows.forEach(function(r, j) {
+                        if (j !== n - 1) sum += parseFloat(r.querySelector('.amount-input').value) || 0;
+                    });
+                    val = total - sum;
+                }
+                row.querySelector('.amount-input').value = val.toFixed(2);
+            });
+        } else if (method === 'by_ideal_parts') {
+            var totalIdealParts = 0;
+            checkedRows.forEach(function(row) {
+                totalIdealParts += parseFloat(row.getAttribute('data-ideal-parts')) || 0;
+            });
+            checkedRows.forEach(function(row, i) {
+                var idealParts = parseFloat(row.getAttribute('data-ideal-parts')) || 0;
+                var val = totalIdealParts ? (total * idealParts / totalIdealParts) : 0;
+                if (i === n - 1) {
+                    // Корекция за последния ред
+                    var sum = 0;
+                    checkedRows.forEach(function(r, j) {
+                        if (j !== n - 1) sum += parseFloat(r.querySelector('.amount-input').value) || 0;
+                    });
+                    val = total - sum;
+                }
+                row.querySelector('.amount-input').value = val.toFixed(2);
+            });
+        }
+        // Всички останали (без тикче) -> празно и disabled
         rows.forEach(function(row) {
-            row.querySelector('.amount-input').value = '';
-        });
-        return;
-    }
-    if (method === 'equal') {
-        var per = (total / n);
-        checkedRows.forEach(function(row, i) {
-            var val = (i === n - 1) ? (total - per * (n - 1)) : per;
-            row.querySelector('.amount-input').value = val.toFixed(2);
-        });
-    } else if (method === 'by_people') {
-        var totalPeople = 0;
-        checkedRows.forEach(function(row) {
-            totalPeople += parseInt(row.getAttribute('data-people')) || 1;
-        });
-        checkedRows.forEach(function(row, i) {
-            var people = parseInt(row.getAttribute('data-people')) || 1;
-            var val = totalPeople ? (total * people / totalPeople) : 0;
-            if (i === n - 1) {
-                // Корекция за последния ред
-                var sum = 0;
-                checkedRows.forEach(function(r, j) {
-                    if (j !== n - 1) sum += parseFloat(r.querySelector('.amount-input').value) || 0;
-                });
-                val = total - sum;
+            if (!row.querySelector('.charge-checkbox').checked) {
+                row.querySelector('.amount-input').value = '';
             }
-            row.querySelector('.amount-input').value = val.toFixed(2);
-        });
-    } else if (method === 'by_area') {
-        var totalArea = 0;
-        checkedRows.forEach(function(row) {
-            totalArea += parseFloat(row.getAttribute('data-area')) || 1;
-        });
-        checkedRows.forEach(function(row, i) {
-            var area = parseFloat(row.getAttribute('data-area')) || 1;
-            var val = totalArea ? (total * area / totalArea) : 0;
-            if (i === n - 1) {
-                // Корекция за последния ред
-                var sum = 0;
-                checkedRows.forEach(function(r, j) {
-                    if (j !== n - 1) sum += parseFloat(r.querySelector('.amount-input').value) || 0;
-                });
-                val = total - sum;
-            }
-            row.querySelector('.amount-input').value = val.toFixed(2);
         });
     }
-    // Всички останали (без тикче) -> празно и disabled
-    rows.forEach(function(row) {
-        if (!row.querySelector('.charge-checkbox').checked) {
-            row.querySelector('.amount-input').value = '';
-        }
+
+    // При промяна на чекбокс или метод автоматично преизчислявай
+    Array.from(document.querySelectorAll('.charge-checkbox')).forEach(function(cb) {
+        cb.addEventListener('change', distributeAmounts);
     });
-}
+    document.getElementById('distribution_method').addEventListener('change', distributeAmounts);
+    document.getElementById('amount').addEventListener('input', distributeAmounts);
 
-// При промяна на чекбокс или метод автоматично преизчислявай
-Array.from(document.querySelectorAll('.charge-checkbox')).forEach(function(cb) {
-    cb.addEventListener('change', distributeAmounts);
-});
-document.getElementById('distribution_method').addEventListener('change', distributeAmounts);
-document.getElementById('amount').addEventListener('input', distributeAmounts);
-
-function toggleChargeRow(checkbox) {
-  var amountInput = checkbox.closest('tr').querySelector('.amount-input');
-  if (!checkbox.checked) {
-    amountInput.value = '';
-    amountInput.disabled = true;
-  } else {
-    amountInput.disabled = false;
-  }
-}
-
-function showPayFeeModal(fee) {
-  document.getElementById('pay_apartment_id').value = fee.apartment_id;
-  document.getElementById('pay_fee_id').value = fee.fa_id;
-  document.getElementById('pay_apartment_info').value = (fee.building_name ? fee.building_name + ' - ' : '') + 'Апартамент ' + fee.apartment_number;
-  document.getElementById('pay_amount').value = fee.amount;
-  // Избери първия метод по подразбиране
-  document.getElementById('pay_payment_method').selectedIndex = 0;
-  var modal = new bootstrap.Modal(document.getElementById('payFeeModal'));
-  modal.show();
-}
-
-// За всички бутони "Плати" в таблицата
-Array.from(document.querySelectorAll('.pay-fee-btn')).forEach(function(btn) {
-  btn.addEventListener('click', function() {
-    var fee = JSON.parse(this.getAttribute('data-fee'));
-    showPayFeeModal(fee);
-  });
-});
-
-// При избор на "от баланс" проверка за достатъчен баланс
-const payPaymentMethod = document.getElementById('pay_payment_method');
-if (payPaymentMethod) {
-  payPaymentMethod.addEventListener('change', function() {
-    if (this.value === 'от баланс') {
-      const apartmentId = document.getElementById('pay_apartment_id').value;
-      const amount = parseFloat(document.getElementById('pay_amount').value);
-      const balance = parseFloat(apartmentBalances[apartmentId] || 0);
-      if (amount > balance) {
-        alert('Недостатъчен баланс!');
-        this.value = '';
+    function toggleChargeRow(checkbox) {
+      var amountInput = checkbox.closest('tr').querySelector('.amount-input');
+      if (!checkbox.checked) {
+        amountInput.value = '';
+        amountInput.disabled = true;
+      } else {
+        amountInput.disabled = false;
       }
     }
-  });
-}
 
-const apartmentBalances = <?php echo json_encode(array_column($apartments, 'balance', 'id')); ?>;
-// Показване на модал за плащане на апартамент
-Array.from(document.querySelectorAll('.pay-apartment-btn')).forEach(function(btn) {
-  btn.addEventListener('click', function() {
-    var apartment = JSON.parse(this.getAttribute('data-apartment'));
-    var aid = apartment.id;
-    document.getElementById('pay_apartment_modal_id').value = aid;
-    document.getElementById('pay_apartment_modal_info').value = apartment.building_name + ' - ' + apartment.number;
-    // Зареждане на задълженията
-    var debts = unpaidFees.filter(fee => fee.apartment_id == aid);
-    console.log('DEBUG unpaidFees for apartment', aid, debts); // Дебъг
-    var list = document.getElementById('apartmentDebtsList');
-    list.innerHTML = '';
-    debts.forEach(function(fee, i) {
-      console.log('DEBUG fee for checkbox:', fee); // Дебъг
-      var div = document.createElement('div');
-      div.className = 'form-check mb-2';
-      div.innerHTML = `
-        <input class="form-check-input debt-checkbox" type="checkbox" name="selected_fees[]" value="${fee.fa_id}" data-amount="${fee.amount}" checked>
-        <label class="form-check-label">${fee.description} - ${fee.amount} лв.</label>
-      `;
-      list.appendChild(div);
+    function showPayFeeModal(fee) {
+      document.getElementById('pay_property_id').value = fee.property_id;
+      document.getElementById('pay_fee_id').value = fee.fa_id;
+      document.getElementById('pay_property_info').value = (fee.building_name ? fee.building_name + ' - ' : '') + 'Имот ' + fee.property_number;
+      document.getElementById('pay_amount').value = fee.amount;
+      // Избери първия метод по подразбиране
+      document.getElementById('pay_payment_method').selectedIndex = 0;
+      var modal = new bootstrap.Modal(document.getElementById('payFeeModal'));
+      modal.show();
+    }
+
+    // За всички бутони "Плати" в таблицата
+    Array.from(document.querySelectorAll('.pay-fee-btn')).forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var fee = JSON.parse(this.getAttribute('data-fee'));
+        showPayFeeModal(fee);
+      });
     });
-    updateTotalApartmentPayment();
-    var modal = new bootstrap.Modal(document.getElementById('payApartmentModal'));
-    modal.show();
-  });
-});
-function updateTotalApartmentPayment() {
-  const checkboxes = document.querySelectorAll('.debt-checkbox:checked');
-  let total = 0;
-  checkboxes.forEach(cb => {
-    total += parseFloat(cb.dataset.amount);
-  });
-  document.getElementById('totalApartmentPayment').textContent = total.toFixed(2);
-}
-document.addEventListener('change', function(e) {
-  if (e.target.classList.contains('debt-checkbox')) updateTotalApartmentPayment();
-});
-// При избор на "от баланс" проверка за достатъчен баланс
-const payApartmentPaymentMethod = document.getElementById('pay_apartment_payment_method');
-if (payApartmentPaymentMethod) {
-  payApartmentPaymentMethod.addEventListener('change', function() {
-    if (this.value === 'от баланс') {
-      const aid = document.getElementById('pay_apartment_modal_id').value;
+
+    // При избор на "от баланс" проверка за достатъчен баланс
+    const payPaymentMethod = document.getElementById('pay_payment_method');
+    if (payPaymentMethod) {
+      payPaymentMethod.addEventListener('change', function() {
+        if (this.value === 'от баланс') {
+          const propertyId = document.getElementById('pay_property_id').value;
+          const amount = parseFloat(document.getElementById('pay_amount').value);
+          const balance = parseFloat(propertyBalances[propertyId] || 0);
+          if (amount > balance) {
+            alert('Недостатъчен баланс!');
+            this.value = '';
+          }
+        }
+      });
+    }
+
+    const propertyBalances = <?php echo json_encode(array_column($properties, 'balance', 'id')); ?>;
+    // Добавяме масив с кратки типове имоти за JS
+    const PROPERTY_TYPES_BG_SHORT = <?php echo json_encode($PROPERTY_TYPES_BG_SHORT); ?>;
+    // Показване на модал за плащане на имот
+    Array.from(document.querySelectorAll('.pay-property-btn')).forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var property = JSON.parse(this.getAttribute('data-property'));
+        var aid = property.id;
+        document.getElementById('pay_property_modal_id').value = aid;
+        // Тук попълваме типа и номера
+        var typeShort = PROPERTY_TYPES_BG_SHORT[property.type] || property.type;
+        document.getElementById('pay_property_modal_info').value = typeShort + ' ' + property.number;
+        // Зареждане на задълженията
+        var debts = unpaidFees.filter(fee => fee.property_id == aid);
+        var list = document.getElementById('propertyDebtsList');
+        list.innerHTML = '';
+        debts.forEach(function(fee, i) {
+          var div = document.createElement('div');
+          div.className = 'form-check mb-2';
+          div.innerHTML = `
+            <input class="form-check-input debt-checkbox" type="checkbox" name="selected_fees[]" value="${fee.fa_id}" data-amount="${fee.amount}" checked>
+            <label class="form-check-label">${fee.description} - ${fee.amount} лв.</label>
+          `;
+          list.appendChild(div);
+        });
+        updateTotalPropertyPayment();
+        var modal = new bootstrap.Modal(document.getElementById('payPropertyModal'));
+        modal.show();
+      });
+    });
+    function updateTotalPropertyPayment() {
       const checkboxes = document.querySelectorAll('.debt-checkbox:checked');
       let total = 0;
-      checkboxes.forEach(cb => { total += parseFloat(cb.dataset.amount); });
-      const balance = parseFloat(apartmentBalances[aid] || 0);
-      if (total > balance) {
-        alert('Недостатъчен баланс!');
-        this.value = '';
+      checkboxes.forEach(cb => {
+        total += parseFloat(cb.dataset.amount);
+      });
+      document.getElementById('totalPropertyPayment').textContent = total.toFixed(2);
+    }
+    document.addEventListener('change', function(e) {
+      if (e.target.classList.contains('debt-checkbox')) updateTotalPropertyPayment();
+    });
+    // При избор на "от баланс" проверка за достатъчен баланс
+    const payPropertyPaymentMethod = document.getElementById('pay_property_payment_method');
+    if (payPropertyPaymentMethod) {
+      payPropertyPaymentMethod.addEventListener('change', function() {
+        if (this.value === 'от баланс') {
+          const aid = document.getElementById('pay_property_modal_id').value;
+          const checkboxes = document.querySelectorAll('.debt-checkbox:checked');
+          let total = 0;
+          checkboxes.forEach(cb => { total += parseFloat(cb.dataset.amount); });
+          const balance = parseFloat(propertyBalances[aid] || 0);
+          if (total > balance) {
+            alert('Недостатъчен баланс!');
+            this.value = '';
+          }
+        }
+      });
+    }
+
+    // Активиране на таб 'Задължения' ако има ?tab=debts или ако има грешка
+    (function() {
+      function activateTab(tabName) {
+        var tab = document.getElementById(tabName + '-tab');
+        var tabContent = document.getElementById(tabName);
+        if (tab && tabContent) {
+          // Премахване на active класа от всички табове
+          document.querySelectorAll('.nav-link').forEach(function(t) {
+            t.classList.remove('active');
+          });
+          document.querySelectorAll('.tab-pane').forEach(function(t) {
+            t.classList.remove('show', 'active');
+          });
+          
+          // Активиране на избрания таб
+          tab.classList.add('active');
+          tabContent.classList.add('show', 'active');
+          
+          // Актуализиране на URL-а
+          const url = new URL(window.location);
+          url.searchParams.set('tab', tabName);
+          window.history.replaceState({}, '', url);
+        }
       }
+      
+      // Проверка за URL параметър tab
+      const urlParams = new URLSearchParams(window.location.search);
+      const activeTab = urlParams.get('tab');
+      
+      if (activeTab) {
+        activateTab(activeTab);
+      } else {
+        // По подразбиране активирай budget таба
+        activateTab('budget');
+      }
+      
+      // Активиране на debts таба ако има грешка
+      <?php if ($error): ?>
+        activateTab('debts');
+      <?php endif; ?>
+      
+      // Добавяне на event listeners за таб бутоните
+      document.querySelectorAll('[data-bs-toggle="tab"]').forEach(function(tabButton) {
+        tabButton.addEventListener('click', function() {
+          const target = this.getAttribute('data-bs-target');
+          const tabName = target.replace('#', '');
+          activateTab(tabName);
+        });
+      });
+    })();
+
+    // Добавям нова функция за обновяване на списъка с имоти
+    function updatePropertiesList() {
+        const buildingId = document.querySelector('select[name="building_id"]').value;
+        if (!buildingId) {
+            document.getElementById('distribution_table').querySelector('tbody').innerHTML = '';
+            return;
+        }
+
+        fetch(`get_properties.php?building_id=${buildingId}`)
+            .then(response => response.json())
+            .then(properties => {
+                const tbody = document.getElementById('distribution_table').querySelector('tbody');
+                tbody.innerHTML = '';
+                
+                properties.forEach(property => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="text-center">
+                            <input type="checkbox" class="charge-checkbox" name="charge[${property.id}]" value="1" checked onchange="toggleChargeRow(this)">
+                        </td>
+                        <td>${property.building_name} - ${property.number}</td>
+                        <td><input type="number" class="form-control amount-input" name="amounts[${property.id}]" step="0.01" min="0" value="0"></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                // Преизчисляване на сумите
+                distributeAmounts();
+            })
+            .catch(error => console.error('Error:', error));
     }
-  });
-}
 
-// Активиране на таб 'Задължения' само при първоначално зареждане, ако има ?tab=debts или ако има грешка
-window.addEventListener('DOMContentLoaded', function() {
-  if (window.location.search.indexOf('tab=debts') !== -1 || <?php echo $error ? 'true' : 'false'; ?>) {
-    var tabTrigger = document.querySelector('#debts-tab');
-    if (tabTrigger && window.bootstrap && bootstrap.Tab) {
-      var tab = new bootstrap.Tab(tabTrigger);
-      tab.show();
+    // Добавяме слушател за промяна на сградата
+    document.querySelector('select[name="building_id"]').addEventListener('change', updatePropertiesList);
+
+    function showWithdrawModal(id, name) {
+      document.getElementById('withdraw_cashbox_id').value = id;
+      document.getElementById('withdraw_cashbox_name').textContent = name;
+      document.getElementById('withdraw_amount').value = '';
+      document.getElementById('withdraw_description').value = '';
+      var modal = new bootstrap.Modal(document.getElementById('withdrawModal'));
+      modal.show();
     }
-  }
-});
-
-// Добавям нова функция за обновяване на списъка с апартаменти
-function updateApartmentsList() {
-    const buildingId = document.querySelector('select[name="building_id"]').value;
-    if (!buildingId) {
-        document.getElementById('distribution_table').querySelector('tbody').innerHTML = '';
-        return;
+    
+    function showReturnModal(withdrawalId, maxAmount, description) {
+      document.getElementById('return_withdrawal_id').value = withdrawalId;
+      document.getElementById('return_withdrawal_description').textContent = description;
+      document.getElementById('return_max_amount').textContent = maxAmount.toFixed(2);
+      document.getElementById('return_amount').value = '';
+      document.getElementById('return_amount').max = maxAmount;
+      document.getElementById('return_description').value = '';
+      var modal = new bootstrap.Modal(document.getElementById('returnModal'));
+      modal.show();
     }
-
-    fetch(`get_apartments.php?building_id=${buildingId}`)
-        .then(response => response.json())
-        .then(apartments => {
-            const tbody = document.getElementById('distribution_table').querySelector('tbody');
-            tbody.innerHTML = '';
-            
-            apartments.forEach(apartment => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="text-center">
-                        <input type="checkbox" class="charge-checkbox" name="charge[${apartment.id}]" value="1" checked onchange="toggleChargeRow(this)">
-                    </td>
-                    <td>${getPropertyTypeName(apartment.type)} ${apartment.number}</td>
-                    <td><input type="number" class="form-control amount-input" name="amounts[${apartment.id}]" step="0.01" min="0" value="0"></td>
-                `;
-                tbody.appendChild(tr);
-            });
-
-            // Преизчисляване на сумите
-            distributeAmounts();
-        })
-        .catch(error => console.error('Error:', error));
-}
-
-// Добавяме слушател за промяна на сградата
-document.querySelector('select[name="building_id"]').addEventListener('change', updateApartmentsList);
-
-function getPropertyTypeName($type) {
-    $types = [
-        'apartment' => 'Апартамент',
-        'garage' => 'Гараж',
-        'room' => 'Стая',
-        'office' => 'Офис',
-        'shop' => 'Магазин',
-        'warehouse' => 'Склад'
-    ];
-    return $types[$type] ?? $type;
-}
-</script>
+    </script>
 </body>
 </html> 

@@ -3,23 +3,23 @@ require_once 'config.php';
 
 header('Content-Type: application/json');
 
-if (!isset($_GET['apartment_id'])) {
+if (!isset($_GET['property_id'])) {
     http_response_code(400);
-    echo json_encode(['error' => 'Не е посочен апартамент']);
+    echo json_encode(['error' => 'Не е посочен имот']);
     exit;
 }
 
-$apartment_id = (int)$_GET['apartment_id'];
+$property_id = (int)$_GET['property_id'];
 
 try {
     $stmt = $pdo->prepare("
         SELECT fa.id, f.description, fa.amount, f.type
-        FROM fee_apartments fa
+        FROM fee_properties fa
         JOIN fees f ON fa.fee_id = f.id
-        WHERE fa.apartment_id = ? AND fa.is_paid = 0
+        WHERE fa.property_id = ? AND fa.is_paid = 0
         ORDER BY f.created_at DESC
     ");
-    $stmt->execute([$apartment_id]);
+    $stmt->execute([$property_id]);
     $fees = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     echo json_encode($fees);
